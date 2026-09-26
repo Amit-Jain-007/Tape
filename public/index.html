@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Journal — Tape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        background: 'var(--background)', foreground: 'var(--foreground)',
+        card: 'var(--card)', 'card-foreground': 'var(--card-foreground)',
+        primary: 'var(--primary)', 'primary-foreground': 'var(--primary-foreground)',
+        secondary: 'var(--secondary)', 'secondary-foreground': 'var(--secondary-foreground)',
+        muted: 'var(--muted)', 'muted-foreground': 'var(--muted-foreground)',
+        accent: 'var(--accent)', 'accent-foreground': 'var(--accent-foreground)',
+        destructive: 'var(--destructive)', 'destructive-foreground': 'var(--destructive-foreground)',
+        border: 'var(--border)', input: 'var(--input)', ring: 'var(--ring)',
+        gain: 'var(--gain)', 'gain-foreground': 'var(--gain-foreground)', 'gain-subtle': 'var(--gain-subtle)',
+        loss: 'var(--loss)', 'loss-foreground': 'var(--loss-foreground)', 'loss-subtle': 'var(--loss-subtle)',
+        'broker-manual': 'var(--broker-manual)', 'broker-binance': 'var(--broker-binance)',
+        'broker-blofin': 'var(--broker-blofin)', 'broker-bitunix': 'var(--broker-bitunix)',
+        'broker-hyperliquid': 'var(--broker-hyperliquid)',
+      },
+      borderRadius: {
+        sm: 'calc(var(--radius) - 4px)', md: 'calc(var(--radius) - 2px)', lg: 'var(--radius)',
+        xl: 'calc(var(--radius) + 4px)', '2xl': 'calc(var(--radius) + 8px)', '3xl': 'calc(var(--radius) + 12px)',
+      },
+      boxShadow: {
+        soft: '0 1px 2px oklch(0.3 0.02 80 / 4%), 0 8px 24px -8px oklch(0.3 0.02 80 / 8%)',
+        lift: '0 2px 4px oklch(0.3 0.02 80 / 5%), 0 16px 40px -12px oklch(0.3 0.02 80 / 14%)',
+      },
+      fontFamily: { display: ['Sora','ui-sans-serif','system-ui','sans-serif'], sans: ['Manrope','ui-sans-serif','system-ui','sans-serif'] },
+    }
+  }
+}
+</script>
+<style>
+:root{
+  --radius:0.75rem;
+  --background:oklch(0.985 0.002 95); --foreground:oklch(0.22 0.015 60);
+  --card:oklch(1 0 0); --card-foreground:oklch(0.22 0.015 60);
+  --primary:oklch(0.52 0.095 188); --primary-foreground:oklch(0.985 0.005 95);
+  --secondary:oklch(0.955 0.008 100); --secondary-foreground:oklch(0.3 0.02 80);
+  --muted:oklch(0.955 0.008 100); --muted-foreground:oklch(0.52 0.02 80);
+  --accent:oklch(0.93 0.03 185); --accent-foreground:oklch(0.35 0.08 188);
+  --destructive:oklch(0.55 0.22 27); --destructive-foreground:oklch(0.985 0.005 95);
+  --border:oklch(0.91 0.008 95); --input:oklch(0.91 0.008 95); --ring:oklch(0.52 0.095 188);
+  --gain:oklch(0.58 0.12 165); --gain-foreground:oklch(0.99 0.005 160); --gain-subtle:oklch(0.94 0.04 165);
+  --loss:oklch(0.55 0.22 27); --loss-foreground:oklch(0.99 0.005 27); --loss-subtle:oklch(0.94 0.035 27);
+  --broker-manual:oklch(0.6 0.04 80); --broker-binance:oklch(0.72 0.14 95);
+  --broker-blofin:oklch(0.58 0.12 250); --broker-bitunix:oklch(0.62 0.16 55); --broker-hyperliquid:oklch(0.55 0.14 300);
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{font-family:'Manrope',ui-sans-serif,system-ui,sans-serif;}
+.font-display{font-family:'Sora',ui-sans-serif,system-ui,sans-serif;}
+.hidden{display:none;}
+.icon{width:1rem;height:1rem;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-2px;}
+</style>
+</head>
+<body class="min-h-screen bg-background text-foreground">
+
+<div id="view-log">
+<header class="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+  <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+    <span class="flex cursor-pointer items-center gap-2 font-display text-lg font-bold text-foreground" id="logoHome">
+      <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 12 14.7 8.7 11.4 3 17.1"/></svg>
+      </span>
+      TradeLog
+    </span>
+    <div class="flex items-center gap-2">
+      <button id="connBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
+        <span class="hidden sm:inline">Accounts</span>
+      </button>
+      <button id="logTradeBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Log trade
+      </button>
+      <button id="themeBtn" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background shadow-sm hover:bg-accent">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto w-full max-w-6xl px-6 py-8">
+  <h1 class="text-2xl font-bold text-foreground">Trading journal</h1>
+  <p class="mt-1 text-sm text-muted-foreground" id="journalSub">Log your first trade to start building your record.</p>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" id="stats"></div>
+
+  <div id="chartsSection" class="mt-6"></div>
+
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <div class="inline-flex rounded-xl border border-border bg-card p-1 shadow-soft" id="statusSeg">
+      <button data-status="all" class="rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground">All (0)</button>
+      <button data-status="open" class="rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">Open (0)</button>
+      <button data-status="closed" class="rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">Closed (0)</button>
+    </div>
+    <div class="inline-flex rounded-xl border border-border bg-card p-1 shadow-soft" id="modeSeg">
+      <button data-mode="list" class="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>List</button>
+      <button data-mode="calendar" class="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Calendar</button>
+    </div>
+  </div>
+
+  <div id="listPanel" class="mt-4 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-border">
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Symbol</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Exchange</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Side</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Asset</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Strategy</th>
+          <th class="px-4 py-3 text-left font-medium text-muted-foreground">Session</th>
+          <th class="px-4 py-3 text-right font-medium text-muted-foreground">P&amp;L</th>
+          <th class="w-20 px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+        </tr></thead>
+        <tbody id="tradeBody"></tbody>
+      </table>
+      <div class="hidden py-12 text-center text-muted-foreground" id="emptyMsg">
+        <p>No trades yet.</p>
+        <button onclick="document.getElementById('logTradeBtn').click()" class="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log your first trade</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="calPanel" class="mt-4 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div class="flex items-center justify-between border-b border-border px-4 py-3">
+      <button id="calPrev" class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent">← Prev</button>
+      <div class="font-display text-sm font-semibold" id="calMonth"></div>
+      <button id="calNext" class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent">Next →</button>
+    </div>
+    <div class="grid grid-cols-7 gap-px bg-border" id="calGrid"></div>
+  </div>
+  <div id="calDayPanel" class="mt-4 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div class="border-b border-border px-4 py-3 font-semibold" id="calDayTitle">Select a day</div>
+    <table class="w-full text-sm"><thead><tr class="border-b border-border">
+      <th class="px-4 py-2 text-left text-muted-foreground">Symbol</th><th class="px-4 py-2 text-left text-muted-foreground">Side</th>
+      <th class="px-4 py-2 text-left text-muted-foreground">Entry</th><th class="px-4 py-2 text-left text-muted-foreground">Exit</th>
+      <th class="px-4 py-2 text-right text-muted-foreground">P&amp;L</th></tr></thead><tbody id="calDayBody"></tbody></table>
+  </div>
+</main>
+</div>
+
+<div id="view-conn" class="hidden">
+  <main class="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <div class="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <button id="backToJournal" class="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to journal
+        </button>
+        <h1 class="font-display text-2xl font-semibold tracking-tight">Connected accounts</h1>
+        <p class="text-sm text-muted-foreground">Pulls your real trade history straight from Bitunix. Your API key never leaves the server.</p>
+      </div>
+    </div>
+    <section class="mb-8 space-y-3" id="connCards"></section>
+  </main>
+</div>
+
+<div id="formOverlay" class="fixed inset-0 z-20 hidden items-center justify-center bg-black/50 p-4">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-lift">
+    <h2 class="font-display text-lg font-semibold" id="formTitle">Log a trade</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Capture the numbers, the chart, and what was going through your head.</p>
+    <form id="tradeForm" class="mt-5 grid grid-cols-2 gap-4">
+      <div><label class="text-sm font-medium">Date</label><input type="date" id="f_date" required class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Symbol</label><input type="text" id="f_symbol" placeholder="BTCUSDT" required class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Direction</label>
+        <select id="f_direction" class="mt-1 flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring">
+          <option value="long">Long</option><option value="short">Short</option></select></div>
+      <div><label class="text-sm font-medium">Entry time (UTC)</label><input type="time" id="f_time" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Entry price</label><input type="number" step="any" id="f_entry" required class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Exit price</label><input type="number" step="any" id="f_exit" placeholder="blank = open" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Quantity</label><input type="number" step="any" id="f_qty" required class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div><label class="text-sm font-medium">Fees</label><input type="number" step="any" id="f_fees" value="0" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div class="col-span-2"><label class="text-sm font-medium">Strategy / setup</label><input type="text" id="f_strategy" placeholder="Breakout, mean reversion…" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+      <div class="col-span-2"><label class="text-sm font-medium">Chart screenshot</label><input type="file" id="f_chart" accept="image/*" class="mt-1 block w-full text-sm"></div>
+      <div class="col-span-2"><label class="text-sm font-medium">Notes</label><textarea id="f_notes" rows="3" class="mt-1 flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></textarea></div>
+      <div class="col-span-2 flex gap-2 pt-2">
+        <button type="submit" id="submitBtn" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Add trade</button>
+        <button type="button" id="cancelForm" class="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const KEY='tape_trades_v2';
+let trades=[]; try{trades=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){trades=[];}
+let editingId=null, calDate=new Date(), calSelDay=null, statusFilter='all', viewMode='list';
+
+function save(){try{localStorage.setItem(KEY,JSON.stringify(trades));}catch(e){alert('Could not save — storage may be full.');}}
+function pnl(t){ if(t.exit===null||t.exit===undefined||t.exit==='') return null; return (t.direction==='long'?(t.exit-t.entry):(t.entry-t.exit))*t.qty-(t.fees||0); }
+function fmtMoney(n){ const a=Math.abs(n); return (n<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
+function sessionFor(time){ const h=time?parseInt(time.split(':')[0],10):new Date().getUTCHours(); if(h>=0&&h<7)return'Asia'; if(h>=7&&h<13)return'London'; if(h>=13&&h<21)return'New York'; return'Sydney'; }
+const BROKER_COLOR={Manual:'bg-broker-manual',Binance:'bg-broker-binance',BloFin:'bg-broker-blofin',Bitunix:'bg-broker-bitunix',Hyperliquid:'bg-broker-hyperliquid'};
+
+document.getElementById('logoHome').addEventListener('click',()=>showView('log'));
+document.getElementById('connBtn').addEventListener('click',()=>showView('conn'));
+document.getElementById('backToJournal').addEventListener('click',()=>showView('log'));
+function showView(name){
+  document.getElementById('view-log').classList.toggle('hidden',name!=='log');
+  document.getElementById('view-conn').classList.toggle('hidden',name!=='conn');
+  if(name==='conn') renderConnections();
+}
+
+let isDarkMode=false;
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  isDarkMode=!isDarkMode;
+  document.documentElement.style.setProperty('--background', isDarkMode?'oklch(0.19 0.012 60)':'oklch(0.985 0.002 95)');
+  document.documentElement.style.setProperty('--foreground', isDarkMode?'oklch(0.95 0.005 95)':'oklch(0.22 0.015 60)');
+  document.documentElement.style.setProperty('--card', isDarkMode?'oklch(0.23 0.014 60)':'oklch(1 0 0)');
+  document.documentElement.style.setProperty('--card-foreground', isDarkMode?'oklch(0.95 0.005 95)':'oklch(0.22 0.015 60)');
+  document.documentElement.style.setProperty('--secondary', isDarkMode?'oklch(0.27 0.014 60)':'oklch(0.955 0.008 100)');
+  document.documentElement.style.setProperty('--muted-foreground', isDarkMode?'oklch(0.65 0.015 80)':'oklch(0.52 0.02 80)');
+  document.documentElement.style.setProperty('--border', isDarkMode?'oklch(0.32 0.014 60)':'oklch(0.91 0.008 95)');
+});
+
+document.getElementById('statusSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; statusFilter=b.dataset.status;
+  document.querySelectorAll('#statusSeg button').forEach(x=>{
+    x.className = x===b ? 'rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground' : 'rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground';
+  });
+  render();
+});
+document.getElementById('modeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; viewMode=b.dataset.mode;
+  document.querySelectorAll('#modeSeg button').forEach(x=>{
+    x.className = 'flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium ' + (x===b?'bg-primary text-primary-foreground':'text-muted-foreground hover:text-foreground');
+  });
+  document.getElementById('statusSeg').parentElement.querySelector('#statusSeg').classList.toggle('invisible', viewMode!=='list');
+  document.getElementById('listPanel').classList.toggle('hidden', viewMode!=='list');
+  document.getElementById('calPanel').classList.toggle('hidden', viewMode!=='calendar');
+  document.getElementById('calDayPanel').classList.toggle('hidden', viewMode!=='calendar');
+  if(viewMode==='calendar') renderCalendar();
+});
+
+document.getElementById('logTradeBtn').addEventListener('click',()=>openForm(null));
+document.getElementById('cancelForm').addEventListener('click',closeForm);
+function openForm(id){
+  editingId=id;
+  const f=document.getElementById('tradeForm'); f.reset();
+  document.getElementById('f_date').valueAsDate=new Date(); document.getElementById('f_fees').value='0';
+  if(id){
+    const t=trades.find(x=>x.id===id);
+    document.getElementById('f_date').value=t.date; document.getElementById('f_symbol').value=t.symbol;
+    document.getElementById('f_direction').value=t.direction; document.getElementById('f_time').value=t.time||'';
+    document.getElementById('f_entry').value=t.entry; document.getElementById('f_exit').value=t.exit==null?'':t.exit;
+    document.getElementById('f_qty').value=t.qty; document.getElementById('f_fees').value=t.fees||0;
+    document.getElementById('f_strategy').value=t.strategy||''; document.getElementById('f_notes').value=t.notes||'';
+    document.getElementById('formTitle').textContent='Edit trade'; document.getElementById('submitBtn').textContent='Save changes';
+  } else {
+    document.getElementById('formTitle').textContent='Log a trade'; document.getElementById('submitBtn').textContent='Add trade';
+  }
+  pendingChart=null;
+  document.getElementById('formOverlay').classList.remove('hidden'); document.getElementById('formOverlay').classList.add('flex');
+}
+function closeForm(){ document.getElementById('formOverlay').classList.add('hidden'); document.getElementById('formOverlay').classList.remove('flex'); }
+document.getElementById('formOverlay').addEventListener('click',e=>{ if(e.target.id==='formOverlay') closeForm(); });
+
+let pendingChart=null;
+document.getElementById('f_chart').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f){pendingChart=undefined;return;}
+  const r=new FileReader(); r.onload=()=>{pendingChart=r.result;}; r.readAsDataURL(f);
+});
+document.getElementById('tradeForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const exitVal=document.getElementById('f_exit').value, timeVal=document.getElementById('f_time').value;
+  const data={
+    date:document.getElementById('f_date').value, symbol:document.getElementById('f_symbol').value.toUpperCase(),
+    direction:document.getElementById('f_direction').value, time:timeVal, session:sessionFor(timeVal),
+    entry:parseFloat(document.getElementById('f_entry').value), exit:exitVal===''?null:parseFloat(exitVal),
+    qty:parseFloat(document.getElementById('f_qty').value), fees:parseFloat(document.getElementById('f_fees').value)||0,
+    strategy:document.getElementById('f_strategy').value, notes:document.getElementById('f_notes').value,
+  };
+  if(editingId){ const t=trades.find(x=>x.id===editingId); Object.assign(t,data); if(pendingChart!==undefined) t.chart=pendingChart; }
+  else { trades.push(Object.assign({id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),chart:pendingChart||null,broker:'Manual'},data)); }
+  save(); render(); closeForm();
+});
+
+function filtered(){
+  return trades.filter(t=>{ const open=pnl(t)===null; if(statusFilter==='open'&&!open)return false; if(statusFilter==='closed'&&open)return false; return true; });
+}
+// ---- chart helpers (plain SVG, no library) ----
+function fmtMoney(v){ const a=Math.abs(v); return (v<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
+function svgBar(data,{horizontal=false,signed=true}={}){
+  const W=520,H=200,PAD=34;
+  if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"></svg>`;
+  const vals=data.map(d=>d.v);
+  const max=Math.max(0,...vals), min=Math.min(0,...vals), range=(max-min)||1;
+  if(horizontal){
+    const bh=(H-PAD)/data.length;
+    const zeroX=PAD+((0-min)/range)*(W-PAD-10);
+    const bars=data.map((d,i)=>{
+      const x1=PAD+((Math.min(0,d.v)-min)/range)*(W-PAD-10);
+      const w=Math.abs(d.v-0)/range*(W-PAD-10);
+      const y=i*bh+4;
+      const color=d.v>=0?'var(--gain)':'var(--loss)';
+      return `<rect x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"><title>${d.label}: ${fmtMoney(d.v)}</title></rect>
+        <text x="4" y="${(y+bh/2-4).toFixed(1)}" font-size="10" fill="var(--muted-foreground)">${d.label.length>10?d.label.slice(0,9)+'…':d.label}</text>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${H}" stroke="var(--border)" stroke-width="1"/>${bars}</svg>`;
+  }
+  const bw=(W-PAD)/data.length;
+  const zeroY=H-PAD-((0-min)/range)*(H-PAD-10);
+  const bars=data.map((d,i)=>{
+    const x=PAD+i*bw+2;
+    const y1=H-PAD-((Math.max(0,d.v)-min)/range)*(H-PAD-10);
+    const y2=H-PAD-((Math.min(0,d.v)-min)/range)*(H-PAD-10);
+    const color=signed?(d.v>=0?'var(--gain)':'var(--loss)'):'var(--primary)';
+    return `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="3" fill="${color}"><title>${d.label}: ${signed?fmtMoney(d.v):d.v+'%'}</title></rect>`;
+  }).join('');
+  const labels = data.length<=14 ? data.map((d,i)=>`<text x="${(PAD+i*bw+bw/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`).join('') : '';
+  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${PAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>${bars}${labels}</svg>`;
+}
+function svgArea(series,{loss:isLoss=false}={}){
+  const W=760,H=200,PAD=8;
+  if(!series.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/></svg>`;
+  const min=Math.min(0,...series), max=Math.max(0,...series), range=(max-min)||1;
+  const stepX=(W-PAD*2)/((series.length-1)||1);
+  const coords=series.map((v,i)=>[PAD+i*stepX, H-PAD-((v-min)/range)*(H-PAD*2)]);
+  const zeroY=H-PAD-((0-min)/range)*(H-PAD*2);
+  const line=coords.map((c,i)=>(i===0?'M':'L')+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ');
+  const area='M'+coords[0][0].toFixed(1)+','+zeroY.toFixed(1)+' '+coords.map(c=>'L'+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ')+' L'+coords[coords.length-1][0].toFixed(1)+','+zeroY.toFixed(1)+' Z';
+  const color=isLoss?'var(--loss)':'var(--primary)';
+  const fill=isLoss?'var(--loss-subtle)':'var(--accent)';
+  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><path d="${area}" fill="${fill}"/><line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/></svg>`;
+}
+function svgPie(slices){
+  const size=180,r=70,cx=90,cy=90;
+  const total=slices.reduce((s,x)=>s+x.v,0)||1;
+  let acc=0; const paths=slices.map(s=>{
+    const a0=(acc/total)*2*Math.PI, a1=((acc+s.v)/total)*2*Math.PI; acc+=s.v;
+    const large=(a1-a0)>Math.PI?1:0;
+    const x0=cx+r*Math.sin(a0), y0=cy-r*Math.cos(a0), x1=cx+r*Math.sin(a1), y1=cy-r*Math.cos(a1);
+    return `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}"><title>${s.name}: ${s.v}</title></path>`;
+  }).join('');
+  const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2 w-2 rounded-full" style="background:${s.color}"></span>${s.name} (${s.v})</span>`).join('');
+  return `<div class="flex h-full items-center gap-6"><svg viewBox="0 0 ${size} ${size}" class="h-40 w-40 shrink-0"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-col gap-1.5">${legend}</div></div>`;
+}
+function chartPanel(title,subtitle,inner){
+  return `<div class="rounded-2xl border border-border bg-card p-5 shadow-soft">
+    <h3 class="text-sm font-bold text-card-foreground">${title}</h3>
+    ${subtitle?`<p class="mt-0.5 text-xs text-muted-foreground">${subtitle}</p>`:''}
+    <div class="mt-3 h-56">${inner}</div></div>`;
+}
+function metricCard(label,value,tone){
+  const color=tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
+  return `<div class="rounded-2xl border border-border bg-card p-4 shadow-soft">
+    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">${label}</p>
+    <p class="mt-1 font-display text-xl font-bold ${color}">${value}</p></div>`;
+}
+function groupBy(list,keyFn){
+  const m={}; list.forEach(t=>{ const k=keyFn(t)||'—'; const c=m[k]=m[k]||{pnl:0,wins:0,total:0}; c.pnl+=pnl(t); c.total++; if(pnl(t)>0)c.wins++; });
+  return Object.entries(m).map(([name,v])=>({name,pnl:v.pnl,winRate:(v.wins/v.total*100),total:v.total}))
+    .sort((a,b)=>Math.abs(b.pnl)-Math.abs(a.pnl)).slice(0,8);
+}
+function renderTradeCharts(closed){
+  const el=document.getElementById('chartsSection');
+  if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border border-border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
+  const chron=[...closed].sort((a,b)=>(a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
+  let equity=0,peak=0; const curve=chron.map(t=>{ equity+=pnl(t); peak=Math.max(peak,equity); return {equity,drawdown:equity-peak}; });
+  const maxDrawdown=Math.min(0,...curve.map(c=>c.drawdown));
+  const dailyMap={}; chron.forEach(t=>{ dailyMap[t.date]=(dailyMap[t.date]||0)+pnl(t); });
+  const daily=Object.entries(dailyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-30).map(([k,v])=>({label:k.slice(5),v}));
+  const monthlyMap={}; chron.forEach(t=>{ const k=t.date.slice(0,7); monthlyMap[k]=(monthlyMap[k]||0)+pnl(t); });
+  const monthly=Object.entries(monthlyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-12).map(([k,v])=>({label:k,v}));
+  const wins=chron.filter(t=>pnl(t)>0), losses=chron.filter(t=>pnl(t)<0), breakeven=chron.filter(t=>pnl(t)===0);
+  const winLoss=[{name:'Wins',v:wins.length,color:'var(--gain)'},{name:'Losses',v:losses.length,color:'var(--loss)'},{name:'Breakeven',v:breakeven.length,color:'var(--muted-foreground)'}].filter(s=>s.v>0);
+  const bySymbol=groupBy(chron,t=>t.symbol);
+  const byStrategy=groupBy(chron,t=>t.strategy);
+  const bySession=groupBy(chron,t=>t.session||sessionFor(t.time));
+  const bySide=groupBy(chron,t=>t.direction);
+  const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dowAgg=dows.map(d=>({day:d,wins:0,total:0,pnl:0}));
+  chron.forEach(t=>{ const idx=new Date(t.date+'T00:00:00').getDay(); const r=dowAgg[idx]; r.total++; r.pnl+=pnl(t); if(pnl(t)>0)r.wins++; });
+  const byWeekday=dowAgg.filter(d=>d.total>0).map(d=>({label:d.day,v:Number((d.wins/d.total*100).toFixed(1))}));
+  const distribution=chron.map((t,i)=>({label:String(i+1),v:pnl(t)}));
+  const avgWin=wins.length?wins.reduce((s,t)=>s+pnl(t),0)/wins.length:0;
+  const avgLoss=losses.length?Math.abs(losses.reduce((s,t)=>s+pnl(t),0)/losses.length):0;
+  const winRate=chron.length?wins.length/chron.length:0;
+  const expectancy=chron.length?winRate*avgWin-(1-winRate)*avgLoss:0;
+  const best=chron.length?Math.max(...chron.map(t=>pnl(t))):0;
+  const worst=chron.length?Math.min(...chron.map(t=>pnl(t))):0;
+  let cur=0,bestStreak=0,worstStreak=0;
+  chron.forEach(t=>{ const p=pnl(t); if(p>0) cur=cur>0?cur+1:1; else if(p<0) cur=cur<0?cur-1:-1; else cur=0; bestStreak=Math.max(bestStreak,cur); worstStreak=Math.min(worstStreak,cur); });
+
+  el.innerHTML = `
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      ${metricCard('Avg win',fmtMoney(avgWin),'gain')}
+      ${metricCard('Avg loss',fmtMoney(-avgLoss),'loss')}
+      ${metricCard('Expectancy / trade',fmtMoney(expectancy),expectancy>=0?'gain':'loss')}
+      ${metricCard('Max drawdown',fmtMoney(maxDrawdown),'loss')}
+      ${metricCard('Best trade',fmtMoney(best),'gain')}
+      ${metricCard('Worst trade',fmtMoney(worst),'loss')}
+      ${metricCard('Best win streak',String(bestStreak))}
+      ${metricCard('Worst loss streak',String(Math.abs(worstStreak)))}
+    </div>
+    <div class="mt-4">${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity)))}</div>
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      ${chartPanel('Daily P&L','Last 30 trading days', svgBar(daily))}
+      ${chartPanel('Drawdown','Distance below your equity high', svgArea(curve.map(c=>c.drawdown),{loss:true}))}
+      ${chartPanel('Monthly P&L','Last 12 months', svgBar(monthly))}
+      ${chartPanel('Win / loss split',`${chron.length} closed trades`, svgPie(winLoss))}
+      ${chartPanel('P&L by symbol','Top instruments by impact', svgBar(bySymbol.map(d=>({label:d.name,v:d.pnl})),{horizontal:true}))}
+      ${chartPanel('P&L by strategy','Which setups actually pay', byStrategy.length?svgBar(byStrategy.map(d=>({label:d.name,v:d.pnl})),{horizontal:true}):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Tag your trades with a strategy to see this.</div>')}
+      ${chartPanel('Win rate by weekday','Where your edge shows up', svgBar(byWeekday,{signed:false}))}
+      ${chartPanel('P&L by session','Asia / London / New York / Sydney', bySession.length?svgBar(bySession.map(d=>({label:d.name,v:d.pnl}))):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see session performance.</div>')}
+      ${chartPanel('Long vs short','Directional bias performance', svgBar(bySide.map(d=>({label:d.name,v:d.pnl}))))}
+      ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution))}
+    </div>`;
+}
+
+function render(){
+  const list=filtered().sort((a,b)=>a.date.localeCompare(b.date));
+  const body=document.getElementById('tradeBody'), empty=document.getElementById('emptyMsg');
+  body.innerHTML=''; empty.classList.toggle('hidden', list.length>0 || trades.length>0);
+  document.querySelector('table').parentElement.querySelector('.hidden.py-12') && (document.getElementById('emptyMsg').classList.toggle('hidden', trades.length>0));
+  [...list].reverse().forEach(t=>{
+    const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b border-border last:border-0';
+    tr.innerHTML=`<td class="whitespace-nowrap px-4 py-3 text-muted-foreground">${new Date(t.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</td>
+      <td class="px-4 py-3 font-semibold">${t.symbol}</td>
+      <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ${BROKER_COLOR[t.broker||'Manual']||'bg-broker-manual'}"></span><span class="text-xs text-muted-foreground whitespace-nowrap">${t.broker||'Manual'}</span></span></td>
+      <td class="px-4 py-3"><span class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${t.direction==='long'?'text-gain border-gain/40':'text-loss border-loss/40'}">${t.direction}</span></td>
+      <td class="px-4 py-3"><span class="inline-flex items-center rounded-md border border-transparent px-2.5 py-0.5 text-xs font-semibold ${open?'bg-primary/90 text-primary-foreground':'bg-secondary text-secondary-foreground'}">${open?'Open':'Closed'}</span></td>
+      <td class="px-4 py-3 capitalize text-muted-foreground">Crypto</td>
+      <td class="max-w-[10rem] truncate px-4 py-3 text-muted-foreground">${t.strategy||'—'}</td>
+      <td class="whitespace-nowrap px-4 py-3 text-muted-foreground">${t.session||sessionFor(t.time)}</td>
+      <td class="px-4 py-3 text-right font-semibold ${open?'text-muted-foreground':(p>=0?'text-gain':'text-loss')}">${open?'Open':fmtMoney(p)}</td>
+      <td class="px-4 py-3 text-right"><div class="flex justify-end gap-1">
+        ${t.chart?`<button data-view-chart="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>`:''}
+        <button data-edit="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+        <button data-del="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon text-destructive" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
+      </div></td>`;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{trades=trades.filter(t=>t.id!==b.dataset.del);save();render();}));
+  body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openForm(b.dataset.edit)));
+  body.querySelectorAll('[data-view-chart]').forEach(b=>b.addEventListener('click',()=>{
+    const t=trades.find(x=>x.id===b.dataset.viewChart); if(!t||!t.chart)return;
+    const lb=document.createElement('div'); lb.className='fixed inset-0 z-30 flex items-center justify-center bg-black/80 p-5';
+    lb.innerHTML=`<img src="${t.chart}" class="max-h-full max-w-full rounded-lg">`; lb.addEventListener('click',()=>lb.remove());
+    document.body.appendChild(lb);
+  }));
+
+  const closed=trades.filter(t=>pnl(t)!==null);
+  const wins=closed.filter(t=>pnl(t)>0), losses=closed.filter(t=>pnl(t)<0);
+  const totalPnl=closed.reduce((s,t)=>s+pnl(t),0);
+  const winRate=closed.length?(wins.length/closed.length*100):null;
+  const grossWin=wins.reduce((s,t)=>s+pnl(t),0), grossLoss=Math.abs(losses.reduce((s,t)=>s+pnl(t),0));
+  const pf=grossLoss>0?(grossWin/grossLoss):(grossWin>0?Infinity:null);
+  const openCount=trades.length-closed.length;
+
+  document.getElementById('stats').innerHTML = [
+    statCard('<path d="M2 7h20v10H2zM16 12h.01"/>','Total P&L', fmtMoney(totalPnl), totalPnl>=0?'gain':'loss'),
+    statCard('<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>','Win rate', winRate==null?'—':winRate.toFixed(1)+'%'),
+    statCard('<path d="M3 7l6 6 4-4 8 8"/><path d="M21 17h-4v-4"/>','Profit factor', pf==null?'—':(pf===Infinity?'∞':pf.toFixed(2))),
+    statCard('<path d="M3 3v18h18"/><path d="M18.7 8 12 14.7 8.7 11.4 3 17.1"/>','Trades', String(trades.length)),
+  ].join('');
+  document.getElementById('journalSub').textContent = trades.length===0?'Log your first trade to start building your record.':`${trades.length} trade${trades.length===1?'':'s'} logged · ${closed.length} closed`;
+  document.querySelector('#statusSeg [data-status=all]').textContent=`All (${trades.length})`;
+  document.querySelector('#statusSeg [data-status=open]').textContent=`Open (${openCount})`;
+  document.querySelector('#statusSeg [data-status=closed]').textContent=`Closed (${closed.length})`;
+
+  renderTradeCharts(closed);
+}
+function statCard(iconPath,label,value,tone){
+  const color = tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
+  return `<div class="rounded-2xl border border-border bg-card p-5 shadow-soft">
+    <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><svg class="icon" viewBox="0 0 24 24">${iconPath}</svg>${label}</div>
+    <p class="mt-2 font-display text-2xl font-bold ${color}">${value}</p></div>`;
+}
+
+function renderCalendar(){
+  const y=calDate.getFullYear(), m=calDate.getMonth();
+  document.getElementById('calMonth').textContent=calDate.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const byDay={}; trades.forEach(t=>{(byDay[t.date]=byDay[t.date]||[]).push(t);});
+  const first=new Date(y,m,1), startPad=first.getDay(), daysInMonth=new Date(y,m+1,0).getDate();
+  const grid=document.getElementById('calGrid'); grid.innerHTML='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>grid.insertAdjacentHTML('beforeend',`<div class="bg-secondary p-2 text-center text-xs font-medium text-muted-foreground">${d}</div>`));
+  for(let i=0;i<startPad;i++) grid.insertAdjacentHTML('beforeend','<div class="min-h-[70px] bg-secondary/50"></div>');
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayTrades=byDay[dateStr]||[]; const dp=dayTrades.reduce((s,t)=>s+(pnl(t)||0),0);
+    const sel=dateStr===calSelDay;
+    const cell=document.createElement('div');
+    cell.className='min-h-[70px] cursor-pointer bg-card p-2 hover:bg-accent'+(sel?' ring-2 ring-inset ring-primary':'');
+    cell.innerHTML=`<div class="text-xs font-medium text-muted-foreground">${d}</div>${dayTrades.length?`<div class="mt-1.5 text-xs font-semibold ${dp>=0?'text-gain':'text-loss'}">${fmtMoney(dp)}</div>`:''}`;
+    cell.addEventListener('click',()=>{calSelDay=dateStr;renderCalendar();renderCalDay(dayTrades,dateStr);});
+    grid.appendChild(cell);
+  }
+  if(calSelDay) renderCalDay(byDay[calSelDay]||[],calSelDay);
+}
+function renderCalDay(list,dateStr){
+  document.getElementById('calDayTitle').textContent=dateStr?`Trades on ${dateStr}`:'Select a day';
+  const body=document.getElementById('calDayBody'); body.innerHTML='';
+  list.forEach(t=>{const p=pnl(t);const tr=document.createElement('tr');tr.className='border-b border-border last:border-0';
+    tr.innerHTML=`<td class="px-4 py-2">${t.symbol}</td><td class="px-4 py-2"><span class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${t.direction==='long'?'text-gain border-gain/40':'text-loss border-loss/40'}">${t.direction}</span></td><td class="px-4 py-2">${t.entry}</td><td class="px-4 py-2">${t.exit==null?'—':t.exit}</td><td class="px-4 py-2 text-right font-semibold ${p==null?'text-muted-foreground':(p>=0?'text-gain':'text-loss')}">${p==null?'Open':fmtMoney(p)}</td>`;
+    body.appendChild(tr);});
+}
+document.getElementById('calPrev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();});
+document.getElementById('calNext').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();});
+
+const CONN_KEY='tape_connections_v1';
+let connMeta={}; try{connMeta=JSON.parse(localStorage.getItem(CONN_KEY)||'{}');}catch(e){connMeta={};}
+function saveConnMeta(){try{localStorage.setItem(CONN_KEY,JSON.stringify(connMeta));}catch(e){}}
+
+function renderConnections(){
+  const wrap=document.getElementById('connCards'); wrap.innerHTML='';
+  const meta=connMeta['Bitunix'];
+  const card=document.createElement('div');
+  card.className='flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 shadow-sm';
+  card.innerHTML=`<div class="min-w-0">
+    <div class="flex items-center gap-2">
+      <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
+      <span class="font-medium">Bitunix</span>
+      <span class="inline-flex items-center rounded-md border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">${meta?'connected':'not connected'}</span>
+    </div>
+    <p class="mt-1 truncate text-xs text-muted-foreground" id="connSub">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)`:'Not synced yet'}</p>
+  </div>
+  <button id="syncBtn" class="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
+  </button>`;
+  card.querySelector('#syncBtn').addEventListener('click',async(e)=>{
+    const btn=e.currentTarget; btn.disabled=true; btn.textContent='Syncing…';
+    try{
+      const since=meta?new Date(meta.date).getTime():Date.now()-90*86400000;
+      const res=await fetch(`/api/trades?since=${since}`);
+      const body=await res.json();
+      if(!res.ok) throw new Error(body.error||'Sync failed');
+      const incoming=body.trades||[];
+      const existingIds=new Set(trades.filter(t=>t.broker==='Bitunix').map(t=>t.id));
+      const fresh=incoming.filter(t=>!existingIds.has(t.id));
+      trades=trades.filter(t=>!(t.broker==='Bitunix'&&incoming.some(x=>x.id===t.id))).concat(incoming);
+      save();
+      connMeta['Bitunix']={date:new Date().toISOString().slice(0,10),count:incoming.length}; saveConnMeta();
+      renderConnections(); render();
+      alert(`Synced ${incoming.length} trade(s) from Bitunix (${fresh.length} new).`);
+    }catch(err){
+      alert('Sync failed: '+(err.message||'unknown error')+'\n\nCheck that BITUNIX_API_KEY and BITUNIX_API_SECRET are set correctly in your hosting provider\'s environment variables.');
+    }finally{
+      btn.disabled=false; btn.innerHTML='<svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now';
+    }
+  });
+  wrap.appendChild(card);
+}
+
+render();
+</script>
+</body>
+</html>
