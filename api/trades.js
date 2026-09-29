@@ -72,6 +72,22 @@ module.exports = async (req, res) => {
       : Array.isArray(historyBody?.data)
         ? historyBody.data
         : [];
+
+    // Debug mode: open /api/trades?debug=1 to see exactly what Bitunix returns.
+    // Contains trade data only (never your API key or secret).
+    if (req.query.debug) {
+      return res.status(200).json({
+        count: historyRows.length,
+        keysOfFirstRow: historyRows[0] ? Object.keys(historyRows[0]) : [],
+        sideValues: historyRows.slice(0, 20).map((r) => ({
+          symbol: r.symbol,
+          side: r.side,
+          positionSide: r.positionSide,
+          positionMode: r.positionMode,
+        })),
+        sample: historyRows.slice(0, 3),
+      });
+    }
     const closed = historyRows.map((r) => ({
       id: String(r.positionId ?? r.id ?? `${r.symbol}-${r.ctime}`),
       symbol: String(r.symbol ?? 'UNKNOWN'),
