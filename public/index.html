@@ -295,6 +295,36 @@ function filtered(){
 }
 // ---- chart helpers (plain SVG, no library) ----
 function fmtMoney(v){ const a=Math.abs(v); return (v<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
+// ---- shared floating tooltip, same behavior as the original's Recharts Tooltip ----
+let tipEl=null;
+function ensureTip(){
+  if(tipEl) return tipEl;
+  tipEl=document.createElement('div');
+  tipEl.className='pointer-events-none fixed z-50 hidden rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-lift';
+  document.body.appendChild(tipEl);
+  return tipEl;
+}
+function wireTooltips(container){
+  const tip=ensureTip();
+  container.querySelectorAll('[data-tip]').forEach(el=>{
+    el.addEventListener('mouseenter',(e)=>{
+      tip.innerHTML=el.getAttribute('data-tip');
+      tip.classList.remove('hidden');
+      el.style.opacity='0.85';
+    });
+    el.addEventListener('mousemove',(e)=>{
+      tip.style.left=(e.clientX+14)+'px';
+      tip.style.top=(e.clientY+14)+'px';
+    });
+    el.addEventListener('mouseleave',()=>{
+      tip.classList.add('hidden');
+      el.style.opacity='1';
+    });
+  });
+}
+function tipRow(label,value,color){
+  return `<div class="font-semibold text-card-foreground">${label}</div><div class="mt-0.5" style="color:${color||'var(--card-foreground)'}">${value}</div>`;
+}
 function svgBar(data,{horizontal=false,signed=true}={}){
   const W=520,H=200,PAD=34;
   if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"></svg>`;
@@ -308,8 +338,9 @@ function svgBar(data,{horizontal=false,signed=true}={}){
       const w=Math.abs(d.v-0)/range*(W-PAD-10);
       const y=i*bh+4;
       const color=d.v>=0?'var(--gain)':'var(--loss)';
-      return `<rect x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"><title>${d.label}: ${fmtMoney(d.v)}</title></rect>
-        <text x="4" y="${(y+bh/2-4).toFixed(1)}" font-size="10" fill="var(--muted-foreground)">${d.label.length>10?d.label.slice(0,9)+'…':d.label}</text>`;
+      const tip=tipRow(d.label,fmtMoney(d.v),color);
+      return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>
+        <text x="4" y="${(y-2).toFixed(1)}" font-size="9" fill="var(--muted-foreground)">${d.label.length>12?d.label.slice(0,11)+'…':d.label}</text>`;
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${H}" stroke="var(--border)" stroke-width="1"/>${bars}</svg>`;
   }
@@ -320,7 +351,8 @@ function svgBar(data,{horizontal=false,signed=true}={}){
     const y1=H-PAD-((Math.max(0,d.v)-min)/range)*(H-PAD-10);
     const y2=H-PAD-((Math.min(0,d.v)-min)/range)*(H-PAD-10);
     const color=signed?(d.v>=0?'var(--gain)':'var(--loss)'):'var(--primary)';
-    return `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="3" fill="${color}"><title>${d.label}: ${signed?fmtMoney(d.v):d.v+'%'}</title></rect>`;
+    const tip=tipRow(d.label,signed?fmtMoney(d.v):d.v+'%',color);
+    return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="3" fill="${color}"/>`;
   }).join('');
   const labels = data.length<=14 ? data.map((d,i)=>`<text x="${(PAD+i*bw+bw/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`).join('') : '';
   return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${PAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>${bars}${labels}</svg>`;
@@ -336,7 +368,11 @@ function svgArea(series,{loss:isLoss=false}={}){
   const area='M'+coords[0][0].toFixed(1)+','+zeroY.toFixed(1)+' '+coords.map(c=>'L'+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ')+' L'+coords[coords.length-1][0].toFixed(1)+','+zeroY.toFixed(1)+' Z';
   const color=isLoss?'var(--loss)':'var(--primary)';
   const fill=isLoss?'var(--loss-subtle)':'var(--accent)';
-  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><path d="${area}" fill="${fill}"/><line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/></svg>`;
+  const dots=coords.map((c,i)=>{
+    const tip=tipRow('Point '+(i+1),fmtMoney(series[i]),color);
+    return `<circle data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="7" fill="transparent"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><path d="${area}" fill="${fill}"/><line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}</svg>`;
 }
 function svgPie(slices){
   const size=180,r=70,cx=90,cy=90;
@@ -345,7 +381,8 @@ function svgPie(slices){
     const a0=(acc/total)*2*Math.PI, a1=((acc+s.v)/total)*2*Math.PI; acc+=s.v;
     const large=(a1-a0)>Math.PI?1:0;
     const x0=cx+r*Math.sin(a0), y0=cy-r*Math.cos(a0), x1=cx+r*Math.sin(a1), y1=cy-r*Math.cos(a1);
-    return `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}"><title>${s.name}: ${s.v}</title></path>`;
+    const tip=tipRow(s.name,`${s.v} trade${s.v===1?'':'s'} (${(s.v/total*100).toFixed(0)}%)`,s.color);
+    return `<path data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}"/>`;
   }).join('');
   const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2 w-2 rounded-full" style="background:${s.color}"></span>${s.name} (${s.v})</span>`).join('');
   return `<div class="flex h-full items-center gap-6"><svg viewBox="0 0 ${size} ${size}" class="h-40 w-40 shrink-0"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-col gap-1.5">${legend}</div></div>`;
@@ -380,7 +417,7 @@ function renderTradeCharts(closed){
   const wins=chron.filter(t=>pnl(t)>0), losses=chron.filter(t=>pnl(t)<0), breakeven=chron.filter(t=>pnl(t)===0);
   const winLoss=[{name:'Wins',v:wins.length,color:'var(--gain)'},{name:'Losses',v:losses.length,color:'var(--loss)'},{name:'Breakeven',v:breakeven.length,color:'var(--muted-foreground)'}].filter(s=>s.v>0);
   const bySymbol=groupBy(chron,t=>t.symbol);
-  const byStrategy=groupBy(chron,t=>t.strategy);
+  const byStrategy=groupBy(chron.filter(t=>t.strategy&&t.strategy.trim()),t=>t.strategy);
   const bySession=groupBy(chron,t=>t.session||sessionFor(t.time));
   const bySide=groupBy(chron,t=>t.direction);
   const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -421,6 +458,7 @@ function renderTradeCharts(closed){
       ${chartPanel('Long vs short','Directional bias performance', svgBar(bySide.map(d=>({label:d.name,v:d.pnl}))))}
       ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution))}
     </div>`;
+  wireTooltips(el);
 }
 
 function render(){
@@ -520,6 +558,73 @@ const CONN_KEY='tape_connections_v1';
 let connMeta={}; try{connMeta=JSON.parse(localStorage.getItem(CONN_KEY)||'{}');}catch(e){connMeta={};}
 function saveConnMeta(){try{localStorage.setItem(CONN_KEY,JSON.stringify(connMeta));}catch(e){}}
 
+// ---- toast notifications, same idea as the original's sonner toasts ----
+function ensureToastHost(){
+  let host=document.getElementById('toastHost');
+  if(!host){
+    host=document.createElement('div');
+    host.id='toastHost';
+    host.className='fixed right-4 top-4 z-50 flex w-80 flex-col gap-2';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+function toast(message,type){
+  const host=ensureToastHost();
+  const el=document.createElement('div');
+  const isErr=type==='error';
+  el.className='flex items-start gap-2.5 rounded-lg border border-border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
+  el.style.opacity='0'; el.style.transform='translateX(20px)';
+  el.innerHTML=`<svg class="icon mt-0.5 shrink-0" style="stroke:${isErr?'var(--loss)':'var(--gain)'}" viewBox="0 0 24 24">${isErr?'<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>':'<path d="M20 6 9 17l-5-5"/>'}</svg><span class="text-card-foreground">${message}</span>`;
+  host.appendChild(el);
+  requestAnimationFrame(()=>{ el.style.opacity='1'; el.style.transform='translateX(0)'; });
+  setTimeout(()=>{
+    el.style.opacity='0'; el.style.transform='translateX(20px)';
+    setTimeout(()=>el.remove(),300);
+  },4000);
+}
+
+let syncInFlight={};
+async function syncBroker(name,endpoint,silent){
+  if(syncInFlight[name]) return;
+  syncInFlight[name]=true;
+  const btn=document.querySelector(`.sync-btn[data-broker="${name}"]`);
+  if(btn){ btn.disabled=true; btn.textContent='Syncing…'; }
+  try{
+    const m=connMeta[name];
+    // Only pull trades since the last sync, so background syncs stay small.
+    const since=m?new Date(m.date).getTime():Date.now()-90*86400000;
+    const res=await fetch(`${endpoint}?since=${since}`);
+    const body=await res.json();
+    if(!res.ok) throw new Error(body.error||'Sync failed');
+    const incoming=body.trades||[];
+    trades=trades.filter(t=>!(t.broker===name&&incoming.some(x=>x.id===t.id))).concat(incoming);
+    save();
+    connMeta[name]={date:new Date().toISOString().slice(0,10),count:incoming.length}; saveConnMeta();
+    render();
+    if(!silent || incoming.length>0){
+      toast(incoming.length>0 ? `Imported ${incoming.length} trade(s) from ${name}` : 'Already up to date');
+    }
+  }catch(err){
+    if(!silent) toast(`Sync failed: ${err.message||'unknown error'}`,'error');
+    // Silent background syncs fail quietly — no popup interrupting the person.
+  }finally{
+    syncInFlight[name]=false;
+    if(document.getElementById('view-conn').classList.contains('hidden')===false) renderConnections();
+    else if(btn){ btn.disabled=false; btn.innerHTML='<svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now'; }
+  }
+}
+// Background auto-sync every 10 minutes while the app is open — same
+// interval the original app used. Each run only asks the backend for
+// trades since the last successful sync (see the `since` param below),
+// so it's always just the new ones, not a full re-fetch.
+function startAutoSync(){
+  Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>syncBroker(name,endpoint,true));
+  setInterval(()=>{
+    Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>syncBroker(name,endpoint,true));
+  }, 10*60*1000);
+}
+
 function renderConnections(){
   const wrap=document.getElementById('connCards'); wrap.innerHTML='';
   Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>{
@@ -537,32 +642,15 @@ function renderConnections(){
     <button data-broker="${name}" data-endpoint="${endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
       <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
     </button>`;
-    card.querySelector('.sync-btn').addEventListener('click',async(e)=>{
-      const btn=e.currentTarget, name=btn.dataset.broker, endpoint=btn.dataset.endpoint;
-      btn.disabled=true; btn.textContent='Syncing…';
-      try{
-        const m=connMeta[name];
-        const since=m?new Date(m.date).getTime():Date.now()-90*86400000;
-        const res=await fetch(`${endpoint}?since=${since}`);
-        const body=await res.json();
-        if(!res.ok) throw new Error(body.error||'Sync failed');
-        const incoming=body.trades||[];
-        trades=trades.filter(t=>!(t.broker===name&&incoming.some(x=>x.id===t.id))).concat(incoming);
-        save();
-        connMeta[name]={date:new Date().toISOString().slice(0,10),count:incoming.length}; saveConnMeta();
-        renderConnections(); render();
-        alert(`Synced ${incoming.length} trade(s) from ${name}.`);
-      }catch(err){
-        alert(`Sync failed: ${err.message||'unknown error'}\n\nCheck the matching API key/secret are set correctly in your hosting provider's environment variables.`);
-      }finally{
-        renderConnections();
-      }
+    card.querySelector('.sync-btn').addEventListener('click',(e)=>{
+      syncBroker(e.currentTarget.dataset.broker,e.currentTarget.dataset.endpoint,false);
     });
     wrap.appendChild(card);
   });
 }
 
 render();
+startAutoSync();
 </script>
 </body>
 </html>
