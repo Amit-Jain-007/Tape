@@ -45,8 +45,12 @@ async function bitunixGet(path, query) {
 
 const num = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v));
 const optNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
-const direction = (r) =>
-  String(r.side ?? r.positionSide ?? 'long').toLowerCase().includes('short') ? 'short' : 'long';
+const direction = (r) => {
+  const s = String(r.side ?? r.positionSide ?? '').toUpperCase();
+  // Bitunix's docs say LONG/SHORT, but real accounts return BUY/SELL instead.
+  // Handle both: BUY/LONG -> long, SELL/SHORT -> short.
+  return s === 'SELL' || s.includes('SHORT') ? 'short' : 'long';
+};
 
 module.exports = async (req, res) => {
   // Lock this down to your own frontend once you know its URL.
@@ -72,22 +76,6 @@ module.exports = async (req, res) => {
       : Array.isArray(historyBody?.data)
         ? historyBody.data
         : [];
-
-    // Debug mode: open /api/trades?debug=1 to see exactly what Bitunix returns.
-    // Contains trade data only (never your API key or secret).
-    if (req.query.debug) {
-      return res.status(200).json({
-        count: historyRows.length,
-        keysOfFirstRow: historyRows[0] ? Object.keys(historyRows[0]) : [],
-        sideValues: historyRows.slice(0, 20).map((r) => ({
-          symbol: r.symbol,
-          side: r.side,
-          positionSide: r.positionSide,
-          positionMode: r.positionMode,
-        })),
-        sample: historyRows.slice(0, 3),
-      });
-    }
     const closed = historyRows.map((r) => ({
       id: String(r.positionId ?? r.id ?? `${r.symbol}-${r.ctime}`),
       symbol: String(r.symbol ?? 'UNKNOWN'),
