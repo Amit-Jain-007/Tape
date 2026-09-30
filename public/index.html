@@ -405,7 +405,7 @@ function tipRow(label,value,color){
   return `<div class="font-semibold text-card-foreground">${label}</div><div class="mt-0.5" style="color:${color||'var(--card-foreground)'}">${value}</div>`;
 }
 function svgBar(data,{horizontal=false,signed=true}={}){
-  const W=520,H=200,PAD=34;
+  const W=520,H=200,PAD=34,LPAD=38,BPAD=18,TPAD=8;
   if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"></svg>`;
   const vals=data.map(d=>d.v);
   const max=Math.max(0,...vals), min=Math.min(0,...vals), range=(max-min)||1;
@@ -423,35 +423,63 @@ function svgBar(data,{horizontal=false,signed=true}={}){
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${H}" stroke="var(--border)" stroke-width="1"/>${bars}</svg>`;
   }
-  const bw=(W-PAD)/data.length;
-  const zeroY=H-PAD-((0-min)/range)*(H-PAD-10);
+  const bw=(W-LPAD)/data.length;
+  const ticks=niceTicks(min,max,5);
+  const tMin=Math.min(min,ticks[0]), tMax=Math.max(max,ticks[ticks.length-1]), tRange=(tMax-tMin)||1;
+  const yOf=v=>H-BPAD-((v-tMin)/tRange)*(H-BPAD-TPAD);
+  const zeroY=yOf(0);
   const bars=data.map((d,i)=>{
-    const x=PAD+i*bw+2;
-    const y1=H-PAD-((Math.max(0,d.v)-min)/range)*(H-PAD-10);
-    const y2=H-PAD-((Math.min(0,d.v)-min)/range)*(H-PAD-10);
+    const x=LPAD+i*bw+2;
+    const y1=yOf(Math.max(0,d.v)), y2=yOf(Math.min(0,d.v));
     const color=signed?(d.v>=0?'var(--gain)':'var(--loss)'):'var(--primary)';
     const tip=tipRow(d.label,signed?fmtMoney(d.v):d.v+'%',color);
-    return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="3" fill="${color}"/>`;
+    return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="2" fill="${color}"/>`;
   }).join('');
-  const labels = data.length<=14 ? data.map((d,i)=>`<text x="${(PAD+i*bw+bw/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`).join('') : '';
-  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${PAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>${bars}${labels}</svg>`;
+  const everyN=Math.max(1,Math.ceil(data.length/8));
+  const xLabels=data.map((d,i)=>i%everyN===0||i===data.length-1?`<text x="${(LPAD+i*bw+bw/2).toFixed(1)}" y="${H-6}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`:'').join('');
+  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${signed?niceLabel(t):t}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full">${grid}<line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}${xLabels}</svg>`;
 }
-function svgArea(series,{loss:isLoss=false}={}){
-  const W=760,H=200,PAD=8;
-  if(!series.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/></svg>`;
-  const min=Math.min(0,...series), max=Math.max(0,...series), range=(max-min)||1;
-  const stepX=(W-PAD*2)/((series.length-1)||1);
-  const coords=series.map((v,i)=>[PAD+i*stepX, H-PAD-((v-min)/range)*(H-PAD*2)]);
-  const zeroY=H-PAD-((0-min)/range)*(H-PAD*2);
+// "Nice" round tick values, same idea as Recharts' default axis tick generator.
+function niceTicks(min,max,count){
+  if(min===max){ min-=1; max+=1; }
+  const range=niceNum(max-min,false);
+  const step=niceNum(range/(count-1),true);
+  const niceMin=Math.floor(min/step)*step, niceMax=Math.ceil(max/step)*step;
+  const out=[]; for(let v=niceMin; v<=niceMax+step*0.5; v+=step) out.push(Math.round(v*1000)/1000);
+  return out;
+}
+function niceNum(range,round){
+  const exp=Math.floor(Math.log10(range||1));
+  const f=(range||1)/Math.pow(10,exp);
+  let nf;
+  if(round) nf = f<1.5?1:f<3?2:f<7?5:10;
+  else nf = f<=1?1:f<=2?2:f<=5?5:10;
+  return nf*Math.pow(10,exp);
+}
+function niceLabel(v){ return v<0?'-$'+Math.abs(v).toLocaleString():(v===0?'0':'$'+v.toLocaleString()); }
+function svgArea(series,labels,{loss:isLoss=false}={}){
+  const W=760,H=200,LPAD=42,BPAD=18,TPAD=8;
+  if(!series.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${LPAD}" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/></svg>`;
+  const min=Math.min(0,...series), max=Math.max(0,...series);
+  const ticks=niceTicks(min,max,5);
+  const tMin=Math.min(min,ticks[0]), tMax=Math.max(max,ticks[ticks.length-1]), tRange=(tMax-tMin)||1;
+  const stepX=(W-LPAD-8)/((series.length-1)||1);
+  const yOf=v=>H-BPAD-((v-tMin)/tRange)*(H-BPAD-TPAD);
+  const coords=series.map((v,i)=>[LPAD+i*stepX, yOf(v)]);
+  const zeroY=yOf(0);
   const line=coords.map((c,i)=>(i===0?'M':'L')+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ');
   const area='M'+coords[0][0].toFixed(1)+','+zeroY.toFixed(1)+' '+coords.map(c=>'L'+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ')+' L'+coords[coords.length-1][0].toFixed(1)+','+zeroY.toFixed(1)+' Z';
   const color=isLoss?'var(--loss)':'var(--primary)';
   const fill=isLoss?'var(--loss-subtle)':'var(--accent)';
   const dots=coords.map((c,i)=>{
-    const tip=tipRow('Point '+(i+1),fmtMoney(series[i]),color);
+    const tip=tipRow(labels&&labels[i]?labels[i]:'Point '+(i+1),fmtMoney(series[i]),color);
     return `<circle data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="7" fill="transparent"/>`;
   }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><path d="${area}" fill="${fill}"/><line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}</svg>`;
+  const everyN=labels?Math.max(1,Math.ceil(labels.length/9)):0;
+  const xLabels=labels?labels.map((lb,i)=>i%everyN===0||i===labels.length-1?`<text x="${coords[i][0].toFixed(1)}" y="${H-4}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${lb}</text>`:'').join(''):'';
+  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${niceLabel(t)}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}${xLabels}</svg>`;
 }
 function svgPie(slices){
   const size=180,r=70,cx=90,cy=90;
@@ -488,6 +516,7 @@ function renderTradeCharts(closed){
   if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border border-border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
   const chron=[...closed].sort((a,b)=>(a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
   let equity=0,peak=0; const curve=chron.map(t=>{ equity+=pnl(t); peak=Math.max(peak,equity); return {equity,drawdown:equity-peak}; });
+  const curveDates=chron.map(t=>{ const d=new Date(t.date+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); });
   const maxDrawdown=Math.min(0,...curve.map(c=>c.drawdown));
   const dailyMap={}; chron.forEach(t=>{ dailyMap[t.date]=(dailyMap[t.date]||0)+pnl(t); });
   const daily=Object.entries(dailyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-30).map(([k,v])=>({label:k.slice(5),v}));
@@ -524,10 +553,10 @@ function renderTradeCharts(closed){
       ${metricCard('Best win streak',String(bestStreak))}
       ${metricCard('Worst loss streak',String(Math.abs(worstStreak)))}
     </div>
-    <div class="mt-4">${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity)))}</div>
+    <div class="mt-4">${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates))}</div>
     <div class="mt-4 grid gap-4 lg:grid-cols-2">
       ${chartPanel('Daily P&L','Last 30 trading days', svgBar(daily))}
-      ${chartPanel('Drawdown','Distance below your equity high', svgArea(curve.map(c=>c.drawdown),{loss:true}))}
+      ${chartPanel('Drawdown','Distance below your equity high', svgArea(curve.map(c=>c.drawdown),curveDates,{loss:true}))}
       ${chartPanel('Monthly P&L','Last 12 months', svgBar(monthly))}
       ${chartPanel('Win / loss split',`${chron.length} closed trades`, svgPie(winLoss))}
       ${chartPanel('P&L by symbol','Top instruments by impact', svgBar(bySymbol.map(d=>({label:d.name,v:d.pnl})),{horizontal:true}))}
