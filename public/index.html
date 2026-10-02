@@ -503,9 +503,9 @@ function svgBar(data,{horizontal=false,signed=true}={}){
       const color=d.v>=0?'var(--gain)':'var(--loss)';
       const tip=tipRow(d.label,fmtMoney(d.v),color);
       return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>
-        <text x="4" y="${(y-2).toFixed(1)}" font-size="9" fill="var(--muted-foreground)">${d.label.length>12?d.label.slice(0,11)+'…':d.label}</text>`;
+        <text x="4" y="${(i*bh+bh/2+3).toFixed(1)}" font-size="9" fill="var(--muted-foreground)">${d.label.length>12?d.label.slice(0,11)+'…':d.label}</text>`;
     }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${H}" stroke="var(--border)" stroke-width="1"/>${bars}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full"><line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${H}" stroke="var(--border)" stroke-width="1"/>${bars}</svg>`;
   }
   const bw=(W-LPAD)/data.length;
   const ticks=niceTicks(min,max,5);
