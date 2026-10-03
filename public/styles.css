@@ -1,0 +1,23 @@
+:root{
+  --radius:0.75rem;
+  --background:oklch(0.985 0.002 95); --foreground:oklch(0.22 0.015 60);
+  --card:oklch(1 0 0); --card-foreground:oklch(0.22 0.015 60);
+  --primary:oklch(0.52 0.095 188); --primary-foreground:oklch(0.985 0.005 95);
+  --secondary:oklch(0.955 0.008 100); --secondary-foreground:oklch(0.3 0.02 80);
+  --muted:oklch(0.955 0.008 100); --muted-foreground:oklch(0.52 0.02 80);
+  --accent:oklch(0.93 0.03 185); --accent-foreground:oklch(0.35 0.08 188);
+  --destructive:oklch(0.55 0.22 27); --destructive-foreground:oklch(0.985 0.005 95);
+  --border:oklch(0.91 0.008 95); --input:oklch(0.91 0.008 95); --ring:oklch(0.52 0.095 188);
+  --gain:oklch(0.58 0.12 165); --gain-foreground:oklch(0.99 0.005 160); --gain-subtle:oklch(0.94 0.04 165);
+  --loss:oklch(0.55 0.22 27); --loss-foreground:oklch(0.99 0.005 27); --loss-subtle:oklch(0.94 0.035 27);
+  --broker-manual:oklch(0.6 0.04 80); --broker-binance:oklch(0.72 0.14 95);
+  --broker-blofin:oklch(0.58 0.12 250); --broker-bitunix:oklch(0.62 0.16 55); --broker-hyperliquid:oklch(0.55 0.14 300);
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{font-family:'Manrope',ui-sans-serif,system-ui,sans-serif;}
+.font-display{font-family:'Sora',ui-sans-serif,system-ui,sans-serif;}
+.hidden{display:none;}
+.icon{width:1rem;height:1rem;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-2px;}
+.row-hover{transition:fill .1s;}
+.row-hover:hover{fill:var(--secondary);}
