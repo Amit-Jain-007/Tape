@@ -41,7 +41,7 @@ function renderReviewModal(visible){
   visible.forEach(t=>{
     const p=pnl(t);
     const row=document.createElement('div');
-    row.className='flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3';
+    row.className='flex items-center justify-between gap-3 rounded-xl border bg-card p-3';
     row.innerHTML=`<div class="min-w-0">
       <div class="flex items-center gap-2">
         <span class="truncate font-semibold">${t.symbol}</span>
@@ -210,7 +210,7 @@ let tipEl=null;
 function ensureTip(){
   if(tipEl) return tipEl;
   tipEl=document.createElement('div');
-  tipEl.className='pointer-events-none fixed z-50 hidden rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-lift';
+  tipEl.className='pointer-events-none fixed z-50 hidden rounded-lg border bg-card px-3 py-2 text-xs shadow-lift';
   document.body.appendChild(tipEl);
   return tipEl;
 }
@@ -336,14 +336,14 @@ function svgPie(slices){
   return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex items-center gap-4">${legend}</div></div>`;
 }
 function chartPanel(title,subtitle,inner){
-  return `<div class="rounded-2xl border border-border bg-card p-5 shadow-soft">
+  return `<div class="rounded-2xl border bg-card p-5 shadow-soft">
     <h3 class="text-sm font-bold text-card-foreground">${title}</h3>
     ${subtitle?`<p class="mt-0.5 text-xs text-muted-foreground">${subtitle}</p>`:''}
     <div class="mt-3 h-56">${inner}</div></div>`;
 }
 function metricCard(label,value,tone){
   const color=tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
-  return `<div class="rounded-2xl border border-border bg-card p-4 shadow-soft">
+  return `<div class="rounded-2xl border bg-card p-4 shadow-soft">
     <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">${label}</p>
     <p class="mt-1 font-display text-xl font-bold ${color}">${value}</p></div>`;
 }
@@ -354,7 +354,7 @@ function groupBy(list,keyFn){
 }
 function renderTradeCharts(closed){
   const el=document.getElementById('chartsSection');
-  if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border border-border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
+  if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
   const chron=[...closed].sort((a,b)=>(a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
   let equity=0,peak=0; const curve=chron.map(t=>{ equity+=pnl(t); peak=Math.max(peak,equity); return {equity,drawdown:equity-peak}; });
   const curveDates=chron.map(t=>{ const d=new Date(t.date+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); });
@@ -416,7 +416,7 @@ function render(){
   body.innerHTML=''; empty.classList.toggle('hidden', list.length>0 || trades.length>0);
   document.querySelector('table').parentElement.querySelector('.hidden.py-12') && (document.getElementById('emptyMsg').classList.toggle('hidden', trades.length>0));
   [...list].reverse().forEach(t=>{
-    const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b border-border last:border-0';
+    const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b last:border-0';
     tr.innerHTML=`<td class="whitespace-nowrap p-2 align-middle text-muted-foreground">${new Date(t.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</td>
       <td class="p-2 align-middle font-semibold">${t.symbol}</td>
       <td class="p-2 align-middle"><span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ${BROKER_COLOR[t.broker||'Manual']||'bg-broker-manual'}"></span><span class="text-xs text-muted-foreground whitespace-nowrap">${t.broker||'Manual'}</span></span></td>
@@ -465,7 +465,7 @@ function render(){
 }
 function statCard(iconPath,label,value,tone){
   const color = tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
-  return `<div class="rounded-2xl border border-border bg-card p-5 shadow-soft">
+  return `<div class="rounded-2xl border bg-card p-5 shadow-soft">
     <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><svg class="icon" viewBox="0 0 24 24">${iconPath}</svg>${label}</div>
     <p class="mt-2 font-display text-2xl font-bold ${color}">${value}</p></div>`;
 }
@@ -493,7 +493,7 @@ function renderCalendar(){
 function renderCalDay(list,dateStr){
   document.getElementById('calDayTitle').textContent=dateStr?`Trades on ${dateStr}`:'Select a day';
   const body=document.getElementById('calDayBody'); body.innerHTML='';
-  list.forEach(t=>{const p=pnl(t);const tr=document.createElement('tr');tr.className='border-b border-border last:border-0';
+  list.forEach(t=>{const p=pnl(t);const tr=document.createElement('tr');tr.className='border-b last:border-0';
     tr.innerHTML=`<td class="p-2 align-middle">${t.symbol}</td><td class="p-2 align-middle"><span class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${t.direction==='long'?'text-gain':'text-loss'}">${t.direction}</span></td><td class="p-2 align-middle">${t.entry}</td><td class="p-2 align-middle">${t.exit==null?'—':t.exit}</td><td class="p-2 align-middle text-right font-semibold ${p==null?'text-muted-foreground':(p>=0?'text-gain':'text-loss')}">${p==null?'Open':fmtMoney(p)}</td>`;
     body.appendChild(tr);});
 }
@@ -522,7 +522,7 @@ function toast(message,type){
   const host=ensureToastHost();
   const el=document.createElement('div');
   const isErr=type==='error';
-  el.className='flex items-start gap-2.5 rounded-lg border border-border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
+  el.className='flex items-start gap-2.5 rounded-lg border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
   el.style.opacity='0'; el.style.transform='translateX(20px)';
   el.innerHTML=`<svg class="icon mt-0.5 shrink-0" style="stroke:${isErr?'var(--loss)':'var(--gain)'}" viewBox="0 0 24 24">${isErr?'<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>':'<path d="M20 6 9 17l-5-5"/>'}</svg><span class="text-card-foreground">${message}</span>`;
   host.appendChild(el);
@@ -580,7 +580,7 @@ function renderConnections(){
   Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>{
     const meta=connMeta[name];
     const card=document.createElement('div');
-    card.className='flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 shadow-sm';
+    card.className='flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm';
     card.innerHTML=`<div class="min-w-0">
       <div class="flex items-center gap-2">
         <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
