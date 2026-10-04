@@ -237,7 +237,7 @@ function tipRow(label,value,color){
 }
 function svgBar(data,{horizontal=false,signed=true}={}){
   const W=520,H=200,PAD=34,LPAD=38,BPAD=18,TPAD=8;
-  if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"></svg>`;
+  if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full"></svg>`;
   const vals=data.map(d=>d.v);
   const max=Math.max(0,...vals), min=Math.min(0,...vals), range=(max-min)||1;
   if(horizontal){
@@ -278,7 +278,7 @@ function svgBar(data,{horizontal=false,signed=true}={}){
   const everyN=Math.max(1,Math.ceil(data.length/maxLabels));
   const xLabels=data.map((d,i)=>i%everyN===0?`<text x="${(LPAD+i*bw+bw/2).toFixed(1)}" y="${H-6}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`:'').join('');
   const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${signed?niceLabel(t):t}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full">${grid}<line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}${xLabels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}${xLabels}</svg>`;
 }
 // "Nice" round tick values, same idea as Recharts' default axis tick generator.
 function niceTicks(min,max,count){
@@ -300,7 +300,7 @@ function niceNum(range,round){
 function niceLabel(v){ return v===0?'0':v.toLocaleString(); }
 function svgArea(series,labels,{loss:isLoss=false}={}){
   const W=760,H=200,LPAD=42,BPAD=18,TPAD=8;
-  if(!series.length) return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full"><line x1="${LPAD}" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/></svg>`;
+  if(!series.length) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full"><line x1="${LPAD}" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/></svg>`;
   const min=Math.min(0,...series), max=Math.max(0,...series);
   const ticks=niceTicks(min,max,5);
   const tMin=Math.min(min,ticks[0]), tMax=Math.max(max,ticks[ticks.length-1]), tRange=(tMax-tMin)||1;
@@ -320,7 +320,7 @@ function svgArea(series,labels,{loss:isLoss=false}={}){
   const everyN=labels?Math.max(1,Math.ceil(labels.length/maxLabels)):0;
   const xLabels=labels?labels.map((lb,i)=>i%everyN===0?`<text x="${coords[i][0].toFixed(1)}" y="${H-4}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${lb}</text>`:'').join(''):'';
   const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${niceLabel(t)}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}${xLabels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}${xLabels}</svg>`;
 }
 function svgPie(slices){
   const size=180,r=70,cx=90,cy=90;
