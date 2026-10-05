@@ -21,3 +21,21 @@ body{font-family:'Manrope',ui-sans-serif,system-ui,sans-serif;}
 .icon{width:1rem;height:1rem;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-2px;}
 .row-hover{transition:fill .1s;}
 .row-hover:hover{fill:var(--secondary);}
+
+/* Dialog enter/exit — same fade + zoom-95 pattern, timing, and easing as the original. */
+@keyframes overlayIn{from{opacity:0}to{opacity:1}}
+@keyframes overlayOut{from{opacity:1}to{opacity:0}}
+@keyframes dialogIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes dialogOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.95)}}
+.dialog-overlay{animation:overlayIn .2s ease-out;}
+.dialog-overlay.closing{animation:overlayOut .2s ease-in;}
+.dialog-content{animation:dialogIn .2s ease-out;}
+.dialog-content.closing{animation:dialogOut .2s ease-in;}
+
+/* Lightbox (chart image viewer) */
+@keyframes lbIn{from{opacity:0}to{opacity:1}}
+.lightbox-in{animation:lbIn .15s ease-out;}
+
+/* Toasts — slide in from the right, same as before but centralized here. */
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.toast-in{animation:toastIn .25s cubic-bezier(.21,1.02,.73,1);}

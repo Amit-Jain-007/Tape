@@ -148,8 +148,8 @@ tailwind.config = {
   </main>
 </div>
 
-<div id="reviewOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
-  <div class="relative max-h-[85vh] w-full overflow-y-auto rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg sm:rounded-lg">
+<div id="reviewOverlay" class="dialog-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
+  <div id="reviewContent" class="dialog-content relative max-h-[85vh] w-full overflow-y-auto rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg sm:rounded-lg">
     <button type="button" id="reviewXClose" aria-label="Close" class="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
       <svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
@@ -166,8 +166,8 @@ tailwind.config = {
   </div>
 </div>
 
-<div id="formOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
-  <div class="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-background p-6 shadow-lg sm:rounded-lg">
+<div id="formOverlay" class="dialog-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
+  <div id="formContent" class="dialog-content relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-background p-6 shadow-lg sm:rounded-lg">
     <button type="button" id="formXClose" aria-label="Close" class="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
       <svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>

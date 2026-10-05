@@ -3,6 +3,18 @@ let trades=[]; try{trades=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){
 let editingId=null, calDate=new Date(), calSelDay=null, statusFilter='all', viewMode='list';
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(trades));}catch(e){alert('Could not save — storage may be full.');}}
+
+// ---- animated dialog open/close, same fade + zoom-95 pattern as the original ----
+function openDialog(overlayId,contentId){
+  const overlay=document.getElementById(overlayId), content=document.getElementById(contentId);
+  overlay.classList.remove('hidden','closing'); overlay.classList.add('flex');
+  content.classList.remove('closing');
+}
+function closeDialog(overlayId,contentId){
+  const overlay=document.getElementById(overlayId), content=document.getElementById(contentId);
+  overlay.classList.add('closing'); content.classList.add('closing');
+  setTimeout(()=>{ overlay.classList.add('hidden'); overlay.classList.remove('flex','closing'); content.classList.remove('closing'); },180);
+}
 function pnl(t){ if(t.exit===null||t.exit===undefined||t.exit==='') return null; return (t.direction==='long'?(t.exit-t.entry):(t.entry-t.exit))*t.qty-(t.fees||0); }
 function fmtMoney(n){ const a=Math.abs(n); return (n<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
 function sessionFor(time){ const h=time?parseInt(time.split(':')[0],10):new Date().getUTCHours(); if(h>=0&&h<7)return'Asia'; if(h>=7&&h<13)return'London'; if(h>=13&&h<21)return'New York'; return'Sydney'; }
@@ -30,10 +42,9 @@ function fmtReviewDate(t){
 }
 function checkNewTradesReview(){
   const visible=pendingReviewTrades();
-  if(visible.length===0){ document.getElementById('reviewOverlay').classList.add('hidden'); document.getElementById('reviewOverlay').classList.remove('flex'); return; }
+  if(visible.length===0){ closeDialog('reviewOverlay','reviewContent'); return; }
   renderReviewModal(visible);
-  document.getElementById('reviewOverlay').classList.remove('hidden');
-  document.getElementById('reviewOverlay').classList.add('flex');
+  openDialog('reviewOverlay','reviewContent');
 }
 function renderReviewModal(visible){
   document.getElementById('reviewCountText').textContent=`${visible.length} new trade${visible.length===1?'':'s'} synced`;
@@ -68,10 +79,10 @@ document.getElementById('reviewSkipAll').addEventListener('click',()=>{
   dismissReview(pendingReviewTrades().map(t=>t.id)); checkNewTradesReview();
 });
 document.getElementById('reviewLater').addEventListener('click',()=>{
-  document.getElementById('reviewOverlay').classList.add('hidden'); document.getElementById('reviewOverlay').classList.remove('flex');
+  closeDialog('reviewOverlay','reviewContent');
 });
 document.getElementById('reviewXClose').addEventListener('click',()=>{
-  document.getElementById('reviewOverlay').classList.add('hidden'); document.getElementById('reviewOverlay').classList.remove('flex');
+  closeDialog('reviewOverlay','reviewContent');
 });
 const BROKER_COLOR={Manual:'bg-broker-manual',Binance:'bg-broker-binance',BloFin:'bg-broker-blofin',Bitunix:'bg-broker-bitunix',Hyperliquid:'bg-broker-hyperliquid'};
 
@@ -144,9 +155,9 @@ function openForm(id){
     document.getElementById('formTitle').textContent='Log a trade'; document.getElementById('submitBtn').textContent='Add trade';
   }
   updatePnlPreview();
-  document.getElementById('formOverlay').classList.remove('hidden'); document.getElementById('formOverlay').classList.add('flex');
+  openDialog('formOverlay','formContent');
 }
-function closeForm(){ document.getElementById('formOverlay').classList.add('hidden'); document.getElementById('formOverlay').classList.remove('flex'); }
+function closeForm(){ closeDialog('formOverlay','formContent'); }
 document.getElementById('formOverlay').addEventListener('click',e=>{ if(e.target.id==='formOverlay') closeForm(); });
 
 let pendingChart=null;
@@ -437,7 +448,7 @@ function render(){
   body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openForm(b.dataset.edit)));
   body.querySelectorAll('[data-view-chart]').forEach(b=>b.addEventListener('click',()=>{
     const t=trades.find(x=>x.id===b.dataset.viewChart); if(!t||!t.chart)return;
-    const lb=document.createElement('div'); lb.className='fixed inset-0 z-30 flex items-center justify-center bg-black/80 p-5';
+    const lb=document.createElement('div'); lb.className='lightbox-in fixed inset-0 z-30 flex items-center justify-center bg-black/80 p-5';
     lb.innerHTML=`<img src="${t.chart}" class="max-h-full max-w-full rounded-lg">`; lb.addEventListener('click',()=>lb.remove());
     document.body.appendChild(lb);
   }));
@@ -522,11 +533,9 @@ function toast(message,type){
   const host=ensureToastHost();
   const el=document.createElement('div');
   const isErr=type==='error';
-  el.className='flex items-start gap-2.5 rounded-lg border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
-  el.style.opacity='0'; el.style.transform='translateX(20px)';
+  el.className='toast-in flex items-start gap-2.5 rounded-lg border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
   el.innerHTML=`<svg class="icon mt-0.5 shrink-0" style="stroke:${isErr?'var(--loss)':'var(--gain)'}" viewBox="0 0 24 24">${isErr?'<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>':'<path d="M20 6 9 17l-5-5"/>'}</svg><span class="text-card-foreground">${message}</span>`;
   host.appendChild(el);
-  requestAnimationFrame(()=>{ el.style.opacity='1'; el.style.transform='translateX(0)'; });
   setTimeout(()=>{
     el.style.opacity='0'; el.style.transform='translateX(20px)';
     setTimeout(()=>el.remove(),300);
