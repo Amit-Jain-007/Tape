@@ -15,7 +15,11 @@ function closeDialog(overlayId,contentId){
   overlay.classList.add('closing'); content.classList.add('closing');
   setTimeout(()=>{ overlay.classList.add('hidden'); overlay.classList.remove('flex','closing'); content.classList.remove('closing'); },180);
 }
-function pnl(t){ if(t.exit===null||t.exit===undefined||t.exit==='') return null; return (t.direction==='long'?(t.exit-t.entry):(t.entry-t.exit))*t.qty-(t.fees||0); }
+function pnl(t){
+  if(t.pnl_override!==undefined && t.pnl_override!==null) return t.pnl_override;
+  if(t.exit===null||t.exit===undefined||t.exit==='') return null;
+  return (t.direction==='long'?(t.exit-t.entry):(t.entry-t.exit))*t.qty-(t.fees||0);
+}
 function fmtMoney(n){ const a=Math.abs(n); return (n<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
 function sessionFor(time){ const h=time?parseInt(time.split(':')[0],10):new Date().getUTCHours(); if(h>=0&&h<7)return'Asia'; if(h>=7&&h<13)return'London'; if(h>=13&&h<21)return'New York'; return'Sydney'; }
 
@@ -513,7 +517,7 @@ document.getElementById('calNext').addEventListener('click',()=>{calDate.setMont
 
 // Each entry here maps a broker to its own backend endpoint (api/<broker>.js).
 // Add a new backend function + one line here to bring on another broker later.
-const BROKER_ENDPOINTS={ Bitunix:'/api/trades' };
+const BROKER_ENDPOINTS={ Bitunix:'/api/trades', Hyperliquid:'/api/hyperliquid' };
 const CONN_KEY='tape_connections_v1';
 let connMeta={}; try{connMeta=JSON.parse(localStorage.getItem(CONN_KEY)||'{}');}catch(e){connMeta={};}
 function saveConnMeta(){try{localStorage.setItem(CONN_KEY,JSON.stringify(connMeta));}catch(e){}}
