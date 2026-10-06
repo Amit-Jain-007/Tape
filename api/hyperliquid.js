@@ -23,13 +23,17 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!WALLET) {
-    return res.status(500).json({ error: 'HYPERLIQUID_WALLET is not set on the server.' });
+  // A wallet address isn't a secret, so the browser is allowed to send one
+  // directly. Fall back to the server's own env var if the request didn't
+  // include one.
+  const rawWallet = (req.query.wallet || WALLET || '').trim().toLowerCase();
+  if (!rawWallet) {
+    return res.status(500).json({ error: 'No wallet address provided. Connect one in the Accounts page, or set HYPERLIQUID_WALLET on the server.' });
   }
-  const user = WALLET.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(user)) {
-    return res.status(500).json({ error: 'HYPERLIQUID_WALLET must be a wallet address starting with 0x.' });
+  if (!/^0x[0-9a-f]{40}$/.test(rawWallet)) {
+    return res.status(500).json({ error: 'That wallet address looks wrong — it should start with 0x and be 42 characters long.' });
   }
+  const user = rawWallet;
 
   try {
     const sinceMs = req.query.since ? Number(req.query.since) : Date.now() - 90 * 86400000;

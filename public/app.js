@@ -515,9 +515,17 @@ function renderCalDay(list,dateStr){
 document.getElementById('calPrev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();});
 document.getElementById('calNext').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();});
 
-// Each entry here maps a broker to its own backend endpoint (api/<broker>.js).
-// Add a new backend function + one line here to bring on another broker later.
-const BROKER_ENDPOINTS={ Bitunix:'/api/trades', Hyperliquid:'/api/hyperliquid' };
+// Each entry maps a broker to its backend endpoint. Brokers whose only
+// credential is public (like a wallet address) can take that value right
+// in the browser via `param` — it's stored locally and sent with each
+// sync request. Brokers needing a real secret (like Bitunix) have no
+// `param` here on purpose: that secret only ever lives in Vercel's
+// environment variables, never in the browser.
+const BROKER_CONFIG={
+  Bitunix:{endpoint:'/api/trades'},
+  Hyperliquid:{endpoint:'/api/hyperliquid', param:'wallet', paramLabel:'Wallet address', paramPlaceholder:'0x…', paramKey:'hyperliquid_wallet'},
+};
+const BROKER_ENDPOINTS=Object.fromEntries(Object.entries(BROKER_CONFIG).map(([k,v])=>[k,v.endpoint]));
 const CONN_KEY='tape_connections_v1';
 let connMeta={}; try{connMeta=JSON.parse(localStorage.getItem(CONN_KEY)||'{}');}catch(e){connMeta={};}
 function saveConnMeta(){try{localStorage.setItem(CONN_KEY,JSON.stringify(connMeta));}catch(e){}}
@@ -546,8 +554,15 @@ function toast(message,type){
   },4000);
 }
 
+function brokerParamValue(name){
+  const cfg=BROKER_CONFIG[name];
+  if(!cfg||!cfg.param) return null;
+  try{ return localStorage.getItem(cfg.paramKey)||null; }catch(e){ return null; }
+}
 let syncInFlight={};
 async function syncBroker(name,endpoint,silent){
+  const cfg=BROKER_CONFIG[name];
+  if(cfg&&cfg.param&&!brokerParamValue(name)) return; // not connected yet — nothing to sync with
   if(syncInFlight[name]) return;
   syncInFlight[name]=true;
   const btn=document.querySelector(`.sync-btn[data-broker="${name}"]`);
@@ -556,7 +571,8 @@ async function syncBroker(name,endpoint,silent){
     const m=connMeta[name];
     // Only pull trades since the last sync, so background syncs stay small.
     const since=m?new Date(m.date).getTime():Date.now()-90*86400000;
-    const res=await fetch(`${endpoint}?since=${since}`);
+    const paramPart=cfg&&cfg.param?`&${cfg.param}=${encodeURIComponent(brokerParamValue(name))}`:'';
+    const res=await fetch(`${endpoint}?since=${since}${paramPart}`);
     const body=await res.json();
     if(!res.ok) throw new Error(body.error||'Sync failed');
     const incoming=body.trades||[];
@@ -590,23 +606,47 @@ function startAutoSync(){
 
 function renderConnections(){
   const wrap=document.getElementById('connCards'); wrap.innerHTML='';
-  Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>{
+  Object.entries(BROKER_CONFIG).forEach(([name,cfg])=>{
     const meta=connMeta[name];
+    const needsParam=!!cfg.param;
+    const paramVal=needsParam?brokerParamValue(name):null;
+    const connected=needsParam?!!paramVal:true; // Bitunix is "connected" once its server key is set — we can't see that from here, so just let Sync now surface the error if it's missing.
     const card=document.createElement('div');
     card.className='flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm';
+    const rightSide = needsParam && !paramVal
+      ? `<div class="flex items-center gap-2">
+          <input type="text" id="param-${name}" placeholder="${cfg.paramPlaceholder}" class="h-9 w-48 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+          <button data-connect="${name}" class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Connect</button>
+        </div>`
+      : `<div class="flex items-center gap-2">
+          ${needsParam?`<button data-disconnect="${name}" class="text-xs text-muted-foreground underline hover:text-foreground">disconnect</button>`:''}
+          <button data-broker="${name}" data-endpoint="${cfg.endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
+          </button>
+        </div>`;
     card.innerHTML=`<div class="min-w-0">
       <div class="flex items-center gap-2">
         <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
         <span class="font-medium">${name}</span>
-        <span class="inline-flex items-center rounded-md border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">${meta?'connected':'not connected'}</span>
+        <span class="inline-flex items-center rounded-md border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">${connected?'connected':'not connected'}</span>
       </div>
-      <p class="mt-1 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)`:'Not synced yet'}</p>
+      <p class="mt-1 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)`:(needsParam&&!paramVal?`Enter your ${cfg.paramLabel.toLowerCase()} to connect`:'Not synced yet')}</p>
     </div>
-    <button data-broker="${name}" data-endpoint="${endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
-    </button>`;
-    card.querySelector('.sync-btn').addEventListener('click',(e)=>{
-      syncBroker(e.currentTarget.dataset.broker,e.currentTarget.dataset.endpoint,false);
+    ${rightSide}`;
+    const syncBtn=card.querySelector('.sync-btn');
+    if(syncBtn) syncBtn.addEventListener('click',(e)=>{ syncBroker(e.currentTarget.dataset.broker,e.currentTarget.dataset.endpoint,false); });
+    const connectBtn=card.querySelector('[data-connect]');
+    if(connectBtn) connectBtn.addEventListener('click',()=>{
+      const val=document.getElementById(`param-${name}`).value.trim();
+      if(!val){ toast(`Enter a ${cfg.paramLabel.toLowerCase()} first`,'error'); return; }
+      try{ localStorage.setItem(cfg.paramKey,val); }catch(e){}
+      renderConnections();
+      syncBroker(name,cfg.endpoint,false);
+    });
+    const disconnectBtn=card.querySelector('[data-disconnect]');
+    if(disconnectBtn) disconnectBtn.addEventListener('click',()=>{
+      try{ localStorage.removeItem(cfg.paramKey); }catch(e){}
+      renderConnections();
     });
     wrap.appendChild(card);
   });
