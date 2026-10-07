@@ -337,18 +337,19 @@ function svgArea(series,labels,{loss:isLoss=false}={}){
   const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${niceLabel(t)}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}${xLabels}</svg>`;
 }
-function svgPie(slices){
+function svgPie(slices,{money=false}={}){
   const size=180,r=70,cx=90,cy=90;
   const total=slices.reduce((s,x)=>s+x.v,0)||1;
   let acc=0; const paths=slices.map(s=>{
     const a0=(acc/total)*2*Math.PI, a1=((acc+s.v)/total)*2*Math.PI; acc+=s.v;
     const large=(a1-a0)>Math.PI?1:0;
     const x0=cx+r*Math.sin(a0), y0=cy-r*Math.cos(a0), x1=cx+r*Math.sin(a1), y1=cy-r*Math.cos(a1);
-    const tip=tipRow(s.name,`${s.v} trade${s.v===1?'':'s'} (${(s.v/total*100).toFixed(0)}%)`,s.color);
+    const valueLabel=money?fmtMoney(s.v):`${s.v} trade${s.v===1?'':'s'}`;
+    const tip=tipRow(s.name,`${valueLabel} (${(s.v/total*100).toFixed(0)}%)`,s.color);
     return `<path data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}"/>`;
   }).join('');
-  const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2.5 w-2.5 rounded-full" style="background:${s.color}"></span>${s.name}</span>`).join('');
-  return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex items-center gap-4">${legend}</div></div>`;
+  const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2.5 w-2.5 rounded-full" style="background:${s.color}"></span>${s.name}${money?` — ${fmtMoney(s.v)}`:''}</span>`).join('');
+  return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-wrap items-center justify-center gap-4">${legend}</div></div>`;
 }
 function chartPanel(title,subtitle,inner){
   return `<div class="rounded-2xl border bg-card p-5 shadow-soft">
@@ -367,6 +368,74 @@ function groupBy(list,keyFn){
   return Object.entries(m).map(([name,v])=>({name,pnl:v.pnl,winRate:(v.wins/v.total*100),total:v.total}))
     .sort((a,b)=>Math.abs(b.pnl)-Math.abs(a.pnl)).slice(0,8);
 }
+// ---- moon phase (approx, synodic month = 29.53059 days; reference new moon 2000-01-06 18:14 UTC) ----
+const MOON_PHASES=['🌑 New Moon','🌒 Waxing Crescent','🌓 First Quarter','🌔 Waxing Gibbous','🌕 Full Moon','🌖 Waning Gibbous','🌗 Last Quarter','🌘 Waning Crescent'];
+function moonPhase(dateStr){
+  const ref=Date.UTC(2000,0,6,18,14,0);
+  const d=new Date(dateStr+'T12:00:00Z').getTime();
+  const days=(d-ref)/86400000;
+  const phase=((days%29.53059)+29.53059)%29.53059;
+  const idx=Math.min(7,Math.floor(phase/(29.53059/8)));
+  return MOON_PHASES[idx];
+}
+
+const CAPITAL_COLORS=['#2F6B7F','#C97B3D','#7A5FB5','#4A8F6B','#C45B6E','#8A8F3D','#3D6FC4','#B0599E'];
+function renderExtraCharts(){
+  const el=document.getElementById('extraChartsSection');
+
+  // --- Total capital, from each connected account's real balance ---
+  const slices=[];
+  Object.keys(BROKER_CONFIG).forEach(name=>{
+    const cfg=BROKER_CONFIG[name];
+    if(cfg.param){
+      getAccounts(name).forEach((acc,i)=>{
+        const meta=connMeta[`${name}:${acc.id}`];
+        if(meta&&typeof meta.balance==='number') slices.push({name:`${name} (${shortLabel(acc.value)})`,v:meta.balance,color:CAPITAL_COLORS[slices.length%CAPITAL_COLORS.length]});
+      });
+    } else {
+      const meta=connMeta[name];
+      if(meta&&typeof meta.balance==='number') slices.push({name,v:meta.balance,color:CAPITAL_COLORS[slices.length%CAPITAL_COLORS.length]});
+    }
+  });
+  const capitalInner = slices.length
+    ? svgPie(slices,{money:true})
+    : `<div class="flex h-full items-center justify-center text-center text-sm text-muted-foreground">Sync an account to see your total capital here.</div>`;
+  const capitalPanel = chartPanel('Total capital','Balance across your connected accounts', capitalInner);
+
+  // --- Performance by moon phase ---
+  const closed=trades.filter(t=>pnl(t)!==null);
+  let moonInner;
+  if(!closed.length){
+    moonInner=`<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see this.</div>`;
+  } else {
+    const byPhase=MOON_PHASES.map(ph=>({phase:ph,trades:[]}));
+    closed.forEach(t=>{ const ph=moonPhase(t.date); byPhase.find(p=>p.phase===ph).trades.push(t); });
+    const rows=byPhase.map(p=>{
+      const longs=p.trades.filter(t=>t.direction==='long'), shorts=p.trades.filter(t=>t.direction==='short');
+      const winRate=arr=>arr.length?(arr.filter(t=>pnl(t)>0).length/arr.length*100):null;
+      const totalPnl=p.trades.reduce((s,t)=>s+pnl(t),0);
+      return {...p,longWin:winRate(longs),shortWin:winRate(shorts),totalPnl,longCount:longs.length,shortCount:shorts.length};
+    });
+    const best=rows.reduce((b,r)=>(r.trades.length&&(!b||r.totalPnl>b.totalPnl))?r:b,null);
+    moonInner=`<div class="h-full overflow-y-auto">
+      ${best?`<p class="mb-2 text-xs text-muted-foreground">Best for you: <span class="font-semibold text-gain">${best.phase}</span> (${fmtMoney(best.totalPnl)} across ${best.trades.length} trade${best.trades.length===1?'':'s'})</p>`:''}
+      <table class="w-full text-xs">
+        <thead><tr class="border-b"><th class="h-7 px-2 text-left align-middle font-medium text-muted-foreground">Phase</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">Long win%</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">Short win%</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">P&amp;L</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr class="border-b last:border-0">
+          <td class="p-2 align-middle whitespace-nowrap">${r.phase}</td>
+          <td class="p-2 align-middle text-right text-muted-foreground">${r.longWin==null?'—':r.longWin.toFixed(0)+'%'}</td>
+          <td class="p-2 align-middle text-right text-muted-foreground">${r.shortWin==null?'—':r.shortWin.toFixed(0)+'%'}</td>
+          <td class="p-2 align-middle text-right font-semibold ${r.trades.length?(r.totalPnl>=0?'text-gain':'text-loss'):'text-muted-foreground'}">${r.trades.length?fmtMoney(r.totalPnl):'—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+  const moonPanel = chartPanel('Performance by moon phase','Long vs short win rate and P&L per lunar phase', moonInner);
+
+  el.innerHTML = `<div class="grid gap-4 lg:grid-cols-2">${capitalPanel}${moonPanel}</div>`;
+  wireTooltips(el);
+}
+
 function renderTradeCharts(closed){
   const el=document.getElementById('chartsSection');
   if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
@@ -476,6 +545,7 @@ function render(){
   document.querySelector('#statusSeg [data-status=open]').textContent=`Open (${openCount})`;
   document.querySelector('#statusSeg [data-status=closed]').textContent=`Closed (${closed.length})`;
 
+  renderExtraCharts();
   renderTradeCharts(closed);
 }
 function statCard(iconPath,label,value,tone){
@@ -525,7 +595,7 @@ const BROKER_CONFIG={
   Bitunix:{endpoint:'/api/trades'},
   Hyperliquid:{endpoint:'/api/hyperliquid', param:'wallet', paramLabel:'Wallet address', paramPlaceholder:'0x…', paramKey:'hyperliquid_wallet'},
 };
-const BROKER_ENDPOINTS=Object.fromEntries(Object.entries(BROKER_CONFIG).map(([k,v])=>[k,v.endpoint]));
+
 const CONN_KEY='tape_connections_v1';
 let connMeta={}; try{connMeta=JSON.parse(localStorage.getItem(CONN_KEY)||'{}');}catch(e){connMeta={};}
 function saveConnMeta(){try{localStorage.setItem(CONN_KEY,JSON.stringify(connMeta));}catch(e){}}
@@ -554,31 +624,59 @@ function toast(message,type){
   },4000);
 }
 
-function brokerParamValue(name){
+// ---- multi-account support for brokers whose credential is public (e.g. a wallet address) ----
+// Stored as an array of {id, value} per broker. Old single-value storage
+// (from before multiple accounts were supported) is migrated automatically.
+function getAccounts(name){
   const cfg=BROKER_CONFIG[name];
-  if(!cfg||!cfg.param) return null;
-  try{ return localStorage.getItem(cfg.paramKey)||null; }catch(e){ return null; }
+  if(!cfg||!cfg.param) return [];
+  try{
+    const raw=localStorage.getItem(cfg.paramKey);
+    if(!raw) return [];
+    const parsed=JSON.parse(raw);
+    if(Array.isArray(parsed)) return parsed;
+    return []; // unexpected shape — treat as empty rather than crash
+  }catch(e){
+    // Not JSON — this is the old single-wallet format from before multi-account support. Migrate it.
+    try{
+      const old=localStorage.getItem(cfg.paramKey);
+      if(old){ const migrated=[{id:'a1',value:old}]; localStorage.setItem(cfg.paramKey,JSON.stringify(migrated)); return migrated; }
+    }catch(e2){}
+    return [];
+  }
 }
+function saveAccounts(name,accounts){
+  const cfg=BROKER_CONFIG[name]; if(!cfg) return;
+  try{ localStorage.setItem(cfg.paramKey,JSON.stringify(accounts)); }catch(e){}
+}
+function shortLabel(v){ return v.length>14?v.slice(0,6)+'…'+v.slice(-4):v; }
+
 let syncInFlight={};
-async function syncBroker(name,endpoint,silent){
+async function syncBroker(name,endpoint,silent,accountId){
   const cfg=BROKER_CONFIG[name];
-  if(cfg&&cfg.param&&!brokerParamValue(name)) return; // not connected yet — nothing to sync with
-  if(syncInFlight[name]) return;
-  syncInFlight[name]=true;
-  const btn=document.querySelector(`.sync-btn[data-broker="${name}"]`);
+  const key=accountId?`${name}:${accountId}`:name;
+  let paramValue=null;
+  if(cfg&&cfg.param){
+    const acc=getAccounts(name).find(a=>a.id===accountId);
+    if(!acc) return; // this account was removed or never connected
+    paramValue=acc.value;
+  }
+  if(syncInFlight[key]) return;
+  syncInFlight[key]=true;
+  const btn=document.querySelector(`.sync-btn[data-key="${key}"]`);
   if(btn){ btn.disabled=true; btn.textContent='Syncing…'; }
   try{
-    const m=connMeta[name];
+    const m=connMeta[key];
     // Only pull trades since the last sync, so background syncs stay small.
     const since=m?new Date(m.date).getTime():Date.now()-90*86400000;
-    const paramPart=cfg&&cfg.param?`&${cfg.param}=${encodeURIComponent(brokerParamValue(name))}`:'';
+    const paramPart=cfg&&cfg.param?`&${cfg.param}=${encodeURIComponent(paramValue)}`:'';
     const res=await fetch(`${endpoint}?since=${since}${paramPart}`);
     const body=await res.json();
     if(!res.ok) throw new Error(body.error||'Sync failed');
     const incoming=body.trades||[];
     trades=trades.filter(t=>!(t.broker===name&&incoming.some(x=>x.id===t.id))).concat(incoming);
     save();
-    connMeta[name]={date:new Date().toISOString().slice(0,10),count:incoming.length}; saveConnMeta();
+    connMeta[key]={date:new Date().toISOString().slice(0,10),count:incoming.length,balance:(typeof body.balance==='number'?body.balance:null)}; saveConnMeta();
     render();
     if(!silent || incoming.length>0){
       toast(incoming.length>0 ? `Imported ${incoming.length} trade(s) from ${name}` : 'Already up to date');
@@ -588,67 +686,119 @@ async function syncBroker(name,endpoint,silent){
     if(!silent) toast(`Sync failed: ${err.message||'unknown error'}`,'error');
     // Silent background syncs fail quietly — no popup interrupting the person.
   }finally{
-    syncInFlight[name]=false;
+    syncInFlight[key]=false;
     if(document.getElementById('view-conn').classList.contains('hidden')===false) renderConnections();
     else if(btn){ btn.disabled=false; btn.innerHTML='<svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now'; }
   }
 }
 // Background auto-sync every 10 minutes while the app is open — same
 // interval the original app used. Each run only asks the backend for
-// trades since the last successful sync (see the `since` param below),
-// so it's always just the new ones, not a full re-fetch.
+// trades since the last successful sync, so it's always just the new ones.
+function syncEverything(silent){
+  Object.entries(BROKER_CONFIG).forEach(([name,cfg])=>{
+    if(cfg.param){ getAccounts(name).forEach(acc=>syncBroker(name,cfg.endpoint,silent,acc.id)); }
+    else { syncBroker(name,cfg.endpoint,silent,null); }
+  });
+}
 function startAutoSync(){
-  Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>syncBroker(name,endpoint,true));
-  setInterval(()=>{
-    Object.entries(BROKER_ENDPOINTS).forEach(([name,endpoint])=>syncBroker(name,endpoint,true));
-  }, 10*60*1000);
+  syncEverything(true);
+  setInterval(()=>syncEverything(true), 10*60*1000);
 }
 
 function renderConnections(){
   const wrap=document.getElementById('connCards'); wrap.innerHTML='';
   Object.entries(BROKER_CONFIG).forEach(([name,cfg])=>{
-    const meta=connMeta[name];
-    const needsParam=!!cfg.param;
-    const paramVal=needsParam?brokerParamValue(name):null;
-    const connected=needsParam?!!paramVal:true; // Bitunix is "connected" once its server key is set — we can't see that from here, so just let Sync now surface the error if it's missing.
-    const card=document.createElement('div');
-    card.className='flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm';
-    const rightSide = needsParam && !paramVal
-      ? `<div class="flex items-center gap-2">
-          <input type="text" id="param-${name}" placeholder="${cfg.paramPlaceholder}" class="h-9 w-48 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-          <button data-connect="${name}" class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Connect</button>
-        </div>`
-      : `<div class="flex items-center gap-2">
-          ${needsParam?`<button data-disconnect="${name}" class="text-xs text-muted-foreground underline hover:text-foreground">disconnect</button>`:''}
-          <button data-broker="${name}" data-endpoint="${cfg.endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
+    const section=document.createElement('div');
+    section.className='rounded-lg border bg-card p-4 shadow-sm';
+
+    if(!cfg.param){
+      // Single server-side credential (e.g. Bitunix's API key) — one row, no accounts list.
+      const meta=connMeta[name];
+      section.innerHTML=`<div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
+            <span class="font-medium">${name}</span>
+          </div>
+          <p class="mt-1 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)${meta.balance!=null?` · ${fmtMoney(meta.balance)}`:''}`:'Not synced yet'}</p>
+        </div>
+        <button data-sync-name="${name}" data-endpoint="${cfg.endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
+        </button>
+      </div>`;
+      section.querySelector('.sync-btn').addEventListener('click',(e)=>{
+        syncBroker(e.currentTarget.dataset.syncName,e.currentTarget.dataset.endpoint,false,null);
+      });
+      wrap.appendChild(section);
+      return;
+    }
+
+    // Multi-account broker (e.g. Hyperliquid wallets).
+    const accounts=getAccounts(name);
+    const rows=accounts.map(acc=>{
+      const meta=connMeta[`${name}:${acc.id}`];
+      return `<div class="flex flex-wrap items-center justify-between gap-3 border-t pt-3 first:border-t-0 first:pt-0">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium">${shortLabel(acc.value)}</p>
+          <p class="mt-0.5 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)${meta.balance!=null?` · ${fmtMoney(meta.balance)}`:''}`:'Not synced yet'}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button data-remove-account="${acc.id}" aria-label="Remove account" class="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><svg class="icon h-3.5 w-3.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          <button data-sync-key="${name}:${acc.id}" data-sync-name="${name}" data-endpoint="${cfg.endpoint}" data-account="${acc.id}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
           </button>
-        </div>`;
-    card.innerHTML=`<div class="min-w-0">
-      <div class="flex items-center gap-2">
-        <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
-        <span class="font-medium">${name}</span>
-        <span class="inline-flex items-center rounded-md border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">${connected?'connected':'not connected'}</span>
+        </div>
+      </div>`;
+    }).join('');
+    section.innerHTML=`
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <svg class="icon text-muted-foreground" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg>
+          <span class="font-medium">${name}</span>
+          <span class="inline-flex items-center rounded-md border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">${accounts.length} account${accounts.length===1?'':'s'}</span>
+        </div>
+        <button data-add-account="${name}" aria-label="Add account" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background shadow-sm hover:bg-accent">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </div>
-      <p class="mt-1 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)`:(needsParam&&!paramVal?`Enter your ${cfg.paramLabel.toLowerCase()} to connect`:'Not synced yet')}</p>
-    </div>
-    ${rightSide}`;
-    const syncBtn=card.querySelector('.sync-btn');
-    if(syncBtn) syncBtn.addEventListener('click',(e)=>{ syncBroker(e.currentTarget.dataset.broker,e.currentTarget.dataset.endpoint,false); });
-    const connectBtn=card.querySelector('[data-connect]');
-    if(connectBtn) connectBtn.addEventListener('click',()=>{
-      const val=document.getElementById(`param-${name}`).value.trim();
+      ${accounts.length?`<div class="mt-3 space-y-3">${rows}</div>`:`<p class="mt-2 text-xs text-muted-foreground">No accounts connected yet — click + to add your ${cfg.paramLabel.toLowerCase()}.</p>`}
+      <div id="addRow-${name}" class="mt-3 hidden items-center gap-2 border-t pt-3">
+        <input type="text" id="param-${name}" placeholder="${cfg.paramPlaceholder}" class="h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+        <button data-connect="${name}" class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Connect</button>
+        <button data-cancel-add="${name}" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent">Cancel</button>
+      </div>`;
+
+    section.querySelector('[data-add-account]').addEventListener('click',()=>{
+      const row=section.querySelector(`#addRow-${name}`);
+      row.classList.remove('hidden'); row.classList.add('flex');
+      section.querySelector(`#param-${name}`).focus();
+    });
+    section.querySelector('[data-cancel-add]').addEventListener('click',()=>{
+      const row=section.querySelector(`#addRow-${name}`);
+      row.classList.add('hidden'); row.classList.remove('flex');
+    });
+    section.querySelector('[data-connect]').addEventListener('click',()=>{
+      const val=section.querySelector(`#param-${name}`).value.trim();
       if(!val){ toast(`Enter a ${cfg.paramLabel.toLowerCase()} first`,'error'); return; }
-      try{ localStorage.setItem(cfg.paramKey,val); }catch(e){}
+      const list=getAccounts(name);
+      if(list.some(a=>a.value.toLowerCase()===val.toLowerCase())){ toast('That account is already connected','error'); return; }
+      const id='a'+Date.now().toString(36);
+      list.push({id,value:val});
+      saveAccounts(name,list);
       renderConnections();
-      syncBroker(name,cfg.endpoint,false);
+      syncBroker(name,cfg.endpoint,false,id);
     });
-    const disconnectBtn=card.querySelector('[data-disconnect]');
-    if(disconnectBtn) disconnectBtn.addEventListener('click',()=>{
-      try{ localStorage.removeItem(cfg.paramKey); }catch(e){}
+    section.querySelectorAll('[data-sync-key]').forEach(b=>b.addEventListener('click',(e)=>{
+      syncBroker(e.currentTarget.dataset.syncName,e.currentTarget.dataset.endpoint,false,e.currentTarget.dataset.account);
+    }));
+    section.querySelectorAll('[data-remove-account]').forEach(b=>b.addEventListener('click',(e)=>{
+      const id=e.currentTarget.dataset.removeAccount;
+      const list=getAccounts(name).filter(a=>a.id!==id);
+      saveAccounts(name,list);
+      delete connMeta[`${name}:${id}`]; saveConnMeta();
       renderConnections();
-    });
-    wrap.appendChild(card);
+    }));
+    wrap.appendChild(section);
   });
 }
 

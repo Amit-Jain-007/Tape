@@ -124,7 +124,17 @@ module.exports = async (req, res) => {
       // history still returns even if the pending-positions call fails
     }
 
-    res.status(200).json({ trades: [...closed, ...open] });
+    let balance = null;
+    try {
+      const acctBody = await bitunixGet('/api/v1/futures/account', new URLSearchParams({ marginCoin: 'USDT' }));
+      const a = acctBody?.data ?? {};
+      balance =
+        num(a.available) + num(a.margin) + num(a.crossUnrealizedPNL) + num(a.isolationUnrealizedPNL);
+    } catch {
+      // Trades still sync fine even if the balance call fails.
+    }
+
+    res.status(200).json({ trades: [...closed, ...open], balance });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
   }

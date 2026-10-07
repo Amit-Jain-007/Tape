@@ -69,10 +69,12 @@ module.exports = async (req, res) => {
         };
       });
 
-    // Currently open perp positions.
+    // Currently open perp positions, plus total account value (balance).
     let open = [];
+    let balance = null;
     try {
       const state = await hyperliquidInfo({ type: 'clearinghouseState', user });
+      balance = optNum(state?.marginSummary?.accountValue);
       const positions = Array.isArray(state?.assetPositions) ? state.assetPositions : [];
       open = positions
         .map((p) => p?.position)
@@ -97,7 +99,7 @@ module.exports = async (req, res) => {
       // Keep the closed history even if the open-positions call fails.
     }
 
-    res.status(200).json({ trades: [...closed, ...open] });
+    res.status(200).json({ trades: [...closed, ...open], balance });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
   }
