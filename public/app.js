@@ -346,13 +346,13 @@ function svgPie(slices,{money=false}={}){
     const x0=cx+r*Math.sin(a0), y0=cy-r*Math.cos(a0), x1=cx+r*Math.sin(a1), y1=cy-r*Math.cos(a1);
     const valueLabel=money?fmtMoney(s.v):`${s.v} trade${s.v===1?'':'s'}`;
     const tip=tipRow(s.name,`${valueLabel} (${(s.v/total*100).toFixed(0)}%)`,s.color);
-    return `<path data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}"/>`;
+    return `<path data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}" fill-opacity="${s.opacity??1}"/>`;
   }).join('');
-  const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2.5 w-2.5 rounded-full" style="background:${s.color}"></span>${s.name}${money?` — ${fmtMoney(s.v)}`:''}</span>`).join('');
+  const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2.5 w-2.5 rounded-full" style="background:${s.color};opacity:${s.opacity??1}"></span>${s.name}${money?` — ${fmtMoney(s.v)}`:''}</span>`).join('');
   return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-wrap items-center justify-center gap-4">${legend}</div></div>`;
 }
-function chartPanel(title,subtitle,inner){
-  return `<div class="rounded-2xl border bg-card p-5 shadow-soft">
+function chartPanel(title,subtitle,inner,extraClass=''){
+  return `<div class="rounded-2xl border bg-card p-5 shadow-soft ${extraClass}">
     <h3 class="text-sm font-bold text-card-foreground">${title}</h3>
     ${subtitle?`<p class="mt-0.5 text-xs text-muted-foreground">${subtitle}</p>`:''}
     <div class="mt-3 h-56">${inner}</div></div>`;
@@ -368,77 +368,96 @@ function groupBy(list,keyFn){
   return Object.entries(m).map(([name,v])=>({name,pnl:v.pnl,winRate:(v.wins/v.total*100),total:v.total}))
     .sort((a,b)=>Math.abs(b.pnl)-Math.abs(a.pnl)).slice(0,8);
 }
-// ---- moon phase (approx, synodic month = 29.53059 days; reference new moon 2000-01-06 18:14 UTC) ----
-const MOON_PHASES=['🌑 New Moon','🌒 Waxing Crescent','🌓 First Quarter','🌔 Waxing Gibbous','🌕 Full Moon','🌖 Waning Gibbous','🌗 Last Quarter','🌘 Waning Crescent'];
-function moonPhase(dateStr){
+// ---- moon phase: the lunar cycle split into two halves ----
+// "New Moon"  = everything from the new moon up to the full moon (waxing).
+// "Full Moon" = everything from the full moon back around to the next new moon (waning).
+// Every trade lands in exactly one of the two. Synodic month = 29.53059 days;
+// reference new moon 2000-01-06 18:14 UTC. Uses the average cycle length, which
+// is off by a few hours (up to ~9), so only a trade on the switch day itself
+// can occasionally land on the other side.
+function moonKind(dateStr){
   const ref=Date.UTC(2000,0,6,18,14,0);
-  const d=new Date(dateStr+'T12:00:00Z').getTime();
-  const days=(d-ref)/86400000;
-  const phase=((days%29.53059)+29.53059)%29.53059;
-  const idx=Math.min(7,Math.floor(phase/(29.53059/8)));
-  return MOON_PHASES[idx];
+  // Read the date at the END of the day, so the day a new or full moon happens
+  // already counts as that phase ("when the New Moon starts...").
+  const d=new Date(dateStr+'T23:59:59Z').getTime();
+  const cycle=29.53059;
+  const phase=(((d-ref)/86400000)%cycle+cycle)%cycle;
+  return phase<cycle/2 ? 'new' : 'full';
 }
 
-const CAPITAL_COLORS=['#2F6B7F','#C97B3D','#7A5FB5','#4A8F6B','#C45B6E','#8A8F3D','#3D6FC4','#B0599E'];
-function renderExtraCharts(){
-  const el=document.getElementById('extraChartsSection');
-
-  // --- Total capital, from each connected account's real balance ---
+// Slice colors come from the app's own design tokens (the same broker dots
+// used in the trades table), not a made-up palette. Extra accounts of the
+// same broker share its color at lower opacity so they stay distinguishable.
+const BROKER_VAR={Bitunix:'var(--broker-bitunix)',Hyperliquid:'var(--broker-hyperliquid)',Binance:'var(--broker-binance)',BloFin:'var(--broker-blofin)',Manual:'var(--broker-manual)'};
+function buildCapitalPanel(){
   const slices=[];
   Object.keys(BROKER_CONFIG).forEach(name=>{
     const cfg=BROKER_CONFIG[name];
+    const color=BROKER_VAR[name]||'var(--primary)';
     if(cfg.param){
-      getAccounts(name).forEach((acc,i)=>{
+      let n=0;
+      getAccounts(name).forEach(acc=>{
         const meta=connMeta[`${name}:${acc.id}`];
-        if(meta&&typeof meta.balance==='number') slices.push({name:`${name} (${shortLabel(acc.value)})`,v:meta.balance,color:CAPITAL_COLORS[slices.length%CAPITAL_COLORS.length]});
+        if(meta&&typeof meta.balance==='number'){
+          slices.push({name:`${name} ${shortLabel(acc.value)}`,v:meta.balance,color,opacity:Math.max(0.35,1-n*0.25)});
+          n++;
+        }
       });
     } else {
       const meta=connMeta[name];
-      if(meta&&typeof meta.balance==='number') slices.push({name,v:meta.balance,color:CAPITAL_COLORS[slices.length%CAPITAL_COLORS.length]});
+      if(meta&&typeof meta.balance==='number') slices.push({name,v:meta.balance,color,opacity:1});
     }
   });
-  const capitalInner = slices.length
-    ? svgPie(slices,{money:true})
-    : `<div class="flex h-full items-center justify-center text-center text-sm text-muted-foreground">Sync an account to see your total capital here.</div>`;
-  const capitalPanel = chartPanel('Total capital','Balance across your connected accounts', capitalInner);
+  const total=slices.reduce((s,x)=>s+x.v,0);
+  const inner = slices.length
+    ? svgPie(slices.filter(s=>s.v>0),{money:true})
+    : `<div class="flex h-full items-center justify-center text-center text-sm text-muted-foreground">Sync an account to see your capital here.</div>`;
+  return chartPanel('Total capital', slices.length?`${fmtMoney(total)} across ${slices.length} account${slices.length===1?'':'s'}`:'Balance across your connected accounts', inner);
+}
 
-  // --- Performance by moon phase ---
-  const closed=trades.filter(t=>pnl(t)!==null);
-  let moonInner;
-  if(!closed.length){
-    moonInner=`<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see this.</div>`;
-  } else {
-    const byPhase=MOON_PHASES.map(ph=>({phase:ph,trades:[]}));
-    closed.forEach(t=>{ const ph=moonPhase(t.date); byPhase.find(p=>p.phase===ph).trades.push(t); });
-    const rows=byPhase.map(p=>{
-      const longs=p.trades.filter(t=>t.direction==='long'), shorts=p.trades.filter(t=>t.direction==='short');
-      const winRate=arr=>arr.length?(arr.filter(t=>pnl(t)>0).length/arr.length*100):null;
-      const totalPnl=p.trades.reduce((s,t)=>s+pnl(t),0);
-      return {...p,longWin:winRate(longs),shortWin:winRate(shorts),totalPnl,longCount:longs.length,shortCount:shorts.length};
-    });
-    const best=rows.reduce((b,r)=>(r.trades.length&&(!b||r.totalPnl>b.totalPnl))?r:b,null);
-    moonInner=`<div class="h-full overflow-y-auto">
-      ${best?`<p class="mb-2 text-xs text-muted-foreground">Best for you: <span class="font-semibold text-gain">${best.phase}</span> (${fmtMoney(best.totalPnl)} across ${best.trades.length} trade${best.trades.length===1?'':'s'})</p>`:''}
-      <table class="w-full text-xs">
-        <thead><tr class="border-b"><th class="h-7 px-2 text-left align-middle font-medium text-muted-foreground">Phase</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">Long win%</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">Short win%</th><th class="h-7 px-2 text-right align-middle font-medium text-muted-foreground">P&amp;L</th></tr></thead>
-        <tbody>${rows.map(r=>`<tr class="border-b last:border-0">
-          <td class="p-2 align-middle whitespace-nowrap">${r.phase}</td>
-          <td class="p-2 align-middle text-right text-muted-foreground">${r.longWin==null?'—':r.longWin.toFixed(0)+'%'}</td>
-          <td class="p-2 align-middle text-right text-muted-foreground">${r.shortWin==null?'—':r.shortWin.toFixed(0)+'%'}</td>
-          <td class="p-2 align-middle text-right font-semibold ${r.trades.length?(r.totalPnl>=0?'text-gain':'text-loss'):'text-muted-foreground'}">${r.trades.length?fmtMoney(r.totalPnl):'—'}</td>
-        </tr>`).join('')}</tbody>
-      </table>
+function buildMoonPanel(closed){
+  const buckets={new:[],full:[]};
+  closed.forEach(t=>{ const k=moonKind(t.date); if(k) buckets[k].push(t); });
+  const summarize=arr=>{
+    const longs=arr.filter(t=>t.direction==='long'), shorts=arr.filter(t=>t.direction==='short');
+    const sum=a=>a.reduce((s,t)=>s+pnl(t),0);
+    const wr=a=>a.length?Math.round(a.filter(t=>pnl(t)>0).length/a.length*100):null;
+    return {count:arr.length,total:sum(arr),long:{n:longs.length,pnl:sum(longs),wr:wr(longs)},short:{n:shorts.length,pnl:sum(shorts),wr:wr(shorts)}};
+  };
+  const N=summarize(buckets.new), F=summarize(buckets.full);
+  const bestKey = (N.count&&F.count) ? (N.total>=F.total?'new':'full') : (N.count?'new':(F.count?'full':null));
+  const tone=v=>v>=0?'text-gain':'text-loss';
+  const sideRow=(label,s)=>`<div class="flex items-center justify-between text-xs">
+      <span class="text-muted-foreground">${label} <span class="opacity-70">· ${s.n}</span></span>
+      ${s.n?`<span><span class="text-muted-foreground">${s.wr}% win</span> <span class="ml-2 font-semibold ${tone(s.pnl)}">${fmtMoney(s.pnl)}</span></span>`:'<span class="text-muted-foreground">—</span>'}
     </div>`;
-  }
-  const moonPanel = chartPanel('Performance by moon phase','Long vs short win rate and P&L per lunar phase', moonInner);
-
-  el.innerHTML = `<div class="grid gap-4 lg:grid-cols-2">${capitalPanel}${moonPanel}</div>`;
-  wireTooltips(el);
+  const card=(key,emoji,title,sub,S)=>`<div class="flex flex-col justify-between rounded-xl border p-4 ${bestKey===key?'bg-gain-subtle/40':'bg-secondary/40'}">
+      <div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold">${emoji} ${title}<span class="block text-[11px] font-normal text-muted-foreground">${sub}</span></span>
+          ${bestKey===key&&(N.count&&F.count)?'<span class="rounded-full bg-gain-subtle px-2 py-0.5 text-[10px] font-semibold text-gain">Better for you</span>':''}
+        </div>
+        <p class="mt-2 font-display text-2xl font-bold ${S.count?tone(S.total):'text-muted-foreground'}">${S.count?fmtMoney(S.total):'—'}</p>
+        <p class="text-xs text-muted-foreground">${S.count} trade${S.count===1?'':'s'}</p>
+      </div>
+      <div class="mt-3 space-y-1.5 border-t pt-3">${sideRow('Long',S.long)}${sideRow('Short',S.short)}</div>
+    </div>`;
+  const inner = (N.count||F.count)
+    ? `<div class="grid h-full grid-cols-2 gap-3">${card('new','🌑','New Moon','New → Full (growing)',N)}${card('full','🌕','Full Moon','Full → New (fading)',F)}</div>`
+    : `<div class="flex h-full items-center justify-center text-center text-sm text-muted-foreground">No closed trades yet.</div>`;
+  return chartPanel('New moon vs full moon','Long vs short results in each half of the lunar cycle', inner);
 }
 
 function renderTradeCharts(closed){
   const el=document.getElementById('chartsSection');
-  if(!closed.length){ el.innerHTML=`<div class="rounded-2xl border bg-card p-10 text-center shadow-soft"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>`; return; }
+  if(!closed.length){
+    el.innerHTML=`<div class="grid gap-4 lg:grid-cols-3">
+      <div class="rounded-2xl border bg-card p-10 text-center shadow-soft lg:col-span-2 flex items-center justify-center"><p class="text-sm text-muted-foreground">Close a trade with a P&amp;L to unlock your performance charts.</p></div>
+      ${buildCapitalPanel()}
+    </div>`;
+    wireTooltips(el);
+    return;
+  }
   const chron=[...closed].sort((a,b)=>(a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
   let equity=0,peak=0; const curve=chron.map(t=>{ equity+=pnl(t); peak=Math.max(peak,equity); return {equity,drawdown:equity-peak}; });
   const curveDates=chron.map(t=>{ const d=new Date(t.date+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); });
@@ -478,7 +497,10 @@ function renderTradeCharts(closed){
       ${metricCard('Best win streak',String(bestStreak))}
       ${metricCard('Worst loss streak',String(Math.abs(worstStreak)))}
     </div>
-    <div class="mt-4">${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates))}</div>
+    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+      ${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates),'lg:col-span-2')}
+      ${buildCapitalPanel()}
+    </div>
     <div class="mt-4 grid gap-4 lg:grid-cols-2">
       ${chartPanel('Daily P&L','Last 30 trading days', svgBar(daily))}
       ${chartPanel('Drawdown','Distance below your equity high', svgArea(curve.map(c=>c.drawdown),curveDates,{loss:true}))}
@@ -489,7 +511,8 @@ function renderTradeCharts(closed){
       ${chartPanel('Win rate by weekday','Where your edge shows up', svgBar(byWeekday,{signed:false}))}
       ${chartPanel('P&L by session','Asia / London / New York / Sydney', bySession.length?svgBar(bySession.map(d=>({label:d.name,v:d.pnl}))):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see session performance.</div>')}
       ${chartPanel('Long vs short','Directional bias performance', svgBar(bySide.map(d=>({label:d.name,v:d.pnl}))))}
-      ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution))}
+      ${buildMoonPanel(chron)}
+      ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution),'lg:col-span-2')}
     </div>`;
   wireTooltips(el);
 }
@@ -545,7 +568,6 @@ function render(){
   document.querySelector('#statusSeg [data-status=open]').textContent=`Open (${openCount})`;
   document.querySelector('#statusSeg [data-status=closed]').textContent=`Closed (${closed.length})`;
 
-  renderExtraCharts();
   renderTradeCharts(closed);
 }
 function statCard(iconPath,label,value,tone){

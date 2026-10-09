@@ -99,6 +99,20 @@ module.exports = async (req, res) => {
       // Keep the closed history even if the open-positions call fails.
     }
 
+    // Spot balances live in a separate account on Hyperliquid, so perps
+    // accountValue alone under-reports total capital. Add the spot USDC
+    // balance on top. (Other spot tokens would need price conversion, which
+    // is skipped here — USDC is the main collateral token.)
+    try {
+      const spot = await hyperliquidInfo({ type: 'spotClearinghouseState', user });
+      const balances = Array.isArray(spot?.balances) ? spot.balances : [];
+      const usdc = balances.find((b) => String(b.coin).toUpperCase() === 'USDC');
+      const spotUsdc = usdc ? num(usdc.total) : 0;
+      balance = (balance ?? 0) + spotUsdc;
+    } catch {
+      // If the spot call fails, the perps balance alone is still returned.
+    }
+
     res.status(200).json({ trades: [...closed, ...open], balance });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
