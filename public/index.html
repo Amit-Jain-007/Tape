@@ -228,6 +228,20 @@ tailwind.config = {
   </div>
 </div>
 
+<div id="keyOverlay" class="dialog-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
+  <div id="keyContent" class="dialog-content relative w-full max-w-sm rounded-lg border bg-background p-6 shadow-lg sm:rounded-lg">
+    <h2 class="text-lg font-semibold leading-none tracking-tight">Enter your access key</h2>
+    <p class="mt-1.5 text-sm text-muted-foreground">This keeps your trade data private. It is saved on this device, so you only enter it once.</p>
+    <form id="keyForm" class="mt-4 space-y-3">
+      <input id="keyInput" type="password" autocomplete="current-password" placeholder="Access key" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+      <div class="flex justify-end gap-2">
+        <button type="button" id="keyCancel" class="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent">Not now</button>
+        <button type="submit" class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">Unlock</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

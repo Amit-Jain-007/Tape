@@ -23,6 +23,165 @@ function pnl(t){
 function fmtMoney(n){ const a=Math.abs(n); return (n<0?'-':'')+'$'+a.toLocaleString(undefined,{maximumFractionDigits:2}); }
 function sessionFor(time){ const h=time?parseInt(time.split(':')[0],10):new Date().getUTCHours(); if(h>=0&&h<7)return'Asia'; if(h>=7&&h<13)return'London'; if(h>=13&&h<21)return'New York'; return'Sydney'; }
 
+// ---- sync helpers (pure functions: they only look at what they are given) ----
+const pad2=n=>String(n).padStart(2,'0');
+function localDateStr(ms){ const d=new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function localTimeStr(ms){ const d=new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function utcTimeStr(ms){ return new Date(ms).toISOString().slice(11,16); }
+
+// Brokers send exact moments (`ts`, in ms). Dates and times are then worked out in YOUR
+// local time, so a trade at 2am lands on the right calendar day. Sessions (Asia / London /
+// New York / Sydney) are defined in UTC hours, so those come from the UTC time instead.
+function normalizeIncoming(t){
+  if(typeof t.ts==='number' && isFinite(t.ts)){
+    t.date=localDateStr(t.ts); t.time=localTimeStr(t.ts); t.session=sessionFor(utcTimeStr(t.ts));
+  }
+  return t;
+}
+
+function isOpenTrade(t){
+  return (t.exit===null||t.exit===undefined||t.exit==='') && (t.pnl_override===undefined||t.pnl_override===null);
+}
+
+// A sync must never wipe what you typed. When the broker re-sends a trade, its numbers are
+// refreshed but your notes, strategy, screenshot, etc. are kept. Also tidies up:
+//  - old one-row-per-fill Hyperliquid records are folded into the whole position that replaces them
+//  - rows that were "open" but are no longer open at the broker are removed (only when the
+//    broker confirmed its open-positions list, so a failed request can never delete anything)
+function mergeSynced(current, incoming, {broker, account, openOk}){
+  const byId=new Map(current.map(t=>[t.id,t]));
+  const incomingIds=new Set(incoming.map(t=>t.id));
+  const folded=new Set(incoming.flatMap(t=>(t.fillIds||[]).map(String)));
+  const merged=incoming.map(inc=>{
+    const old=byId.get(inc.id) || (inc.fillIds||[]).map(f=>byId.get(String(f))).find(Boolean);
+    const t={...inc};
+    if(old){
+      if(old.notes!==null && old.notes!==undefined) t.notes=old.notes; // '' means "reviewed, nothing to add"
+      ['strategy','wentWell','wentWrong','chart','timeframe','asset_class'].forEach(k=>{ if(old[k]) t[k]=old[k]; });
+    }
+    return t;
+  });
+  const sameSource=t=>t.broker===broker && (!account || !t.account || t.account===account);
+  const kept=current.filter(t=>{
+    if(incomingIds.has(t.id)) return false;
+    if(t.broker===broker && folded.has(String(t.id))) return false;
+    if(openOk && sameSource(t) && isOpenTrade(t)) return false;
+    return true;
+  });
+  return kept.concat(merged);
+}
+
+// Where to start reading from. Bitunix filters by when a position was OPENED, so the window
+// must reach back to the oldest position still open at the last sync, or its close would never
+// arrive. A 3-day overlap covers gaps between syncs; trades are matched by id, so overlap is harmless.
+function computeSince(meta, allTrades, broker, account, now){
+  const DAY=86400000;
+  if(!meta) return now-730*DAY;
+  let since=new Date(meta.date).getTime()-3*DAY;
+  if(!isFinite(since)) return now-730*DAY;
+  allTrades.forEach(t=>{
+    if(t.broker!==broker || !isOpenTrade(t)) return;
+    if(account && t.account && t.account!==account) return;
+    const ts=(typeof t.ts==='number')?t.ts:Date.parse(t.date);
+    if(isFinite(ts)) since=Math.min(since, ts-DAY);
+  });
+  return since;
+}
+function countFor(allTrades, broker, account){
+  return allTrades.filter(t=>t.broker===broker && (!account || t.account===account)).length;
+}
+
+// One-time: older saved trades had UTC dates and no exact timestamp. Give each one a `ts`
+// and move synced trades onto your local calendar day.
+(function migrateTimes(){
+  try{
+    if(localStorage.getItem('tape_tz_v1')) return;
+    let changed=false;
+    trades.forEach(t=>{
+      if(typeof t.ts==='number' || !t.date) return;
+      const hhmm=t.time||'00:00';
+      const synced=t.broker && t.broker!=='Manual';
+      const ms=synced ? Date.parse(`${t.date}T${hhmm}:00Z`) : new Date(`${t.date}T${hhmm}:00`).getTime();
+      if(!isFinite(ms)) return;
+      t.ts=ms; changed=true;
+      if(synced) normalizeIncoming(t); else t.session=sessionFor(utcTimeStr(ms));
+    });
+    if(changed) save();
+    localStorage.setItem('tape_tz_v1','1');
+  }catch(e){}
+})();
+
+// ---- access key: keeps your trade data private ----
+// The server only answers requests that carry the key you set as TAPE_ACCESS_KEY in Vercel.
+// It is asked for once and remembered on this device.
+const ACCESS_KEY_STORAGE='tape_access_key';
+let keyPromise=null, keyPromptedThisLoad=false;
+function storedKey(){ try{ return (localStorage.getItem(ACCESS_KEY_STORAGE)||'').trim(); }catch(e){ return ''; } }
+function getAccessKey(){
+  const k=storedKey(); if(k) return Promise.resolve(k);
+  if(keyPromise) return keyPromise; // several syncs at once all wait on the same prompt
+  keyPromise=new Promise(resolve=>{
+    const form=document.getElementById('keyForm'), input=document.getElementById('keyInput'), cancel=document.getElementById('keyCancel');
+    const finish=(val)=>{ form.onsubmit=null; cancel.onclick=null; keyPromise=null; closeDialog('keyOverlay','keyContent'); resolve(val); };
+    form.onsubmit=(e)=>{ e.preventDefault(); const v=input.value.trim(); if(!v) return; try{ localStorage.setItem(ACCESS_KEY_STORAGE,v); }catch(err){} finish(v); };
+    cancel.onclick=()=>finish('');
+    input.value=''; openDialog('keyOverlay','keyContent'); setTimeout(()=>input.focus(),60);
+  });
+  return keyPromise;
+}
+async function apiFetch(url){
+  const key=await getAccessKey();
+  if(!key){ const e=new Error('An access key is needed to sync'); e.auth=true; throw e; }
+  const res=await fetch(url,{headers:{'x-tape-key':key}});
+  if(res.status===401){
+    try{ localStorage.removeItem(ACCESS_KEY_STORAGE); }catch(e){}
+    const e=new Error('Wrong access key — you will be asked for it again'); e.auth=true; throw e;
+  }
+  return res;
+}
+
+// ---- backup: your notes and screenshots live only in this browser ----
+function downloadBackup(){
+  const data={
+    app:'tape', version:1, exportedAt:new Date().toISOString(), trades,
+    accounts:Object.fromEntries(Object.entries(BROKER_CONFIG).filter(([,c])=>c.param).map(([n])=>[n,getAccounts(n)])),
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`tape-backup-${localDateStr(Date.now())}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function restoreBackup(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    let data; try{ data=JSON.parse(r.result); }catch(e){ toast('That file is not a valid backup','error'); return; }
+    if(!data||!Array.isArray(data.trades)){ toast('That file is not a valid Tape backup','error'); return; }
+    const byId=new Map(trades.map(t=>[t.id,t]));
+    let added=0, filled=0;
+    data.trades.forEach(b=>{
+      if(!b||!b.id) return;
+      const cur=byId.get(b.id);
+      if(!cur){ trades.push(b); byId.set(b.id,b); added++; return; }
+      // Already on this device: only fill in blanks, never overwrite what is here.
+      ['strategy','wentWell','wentWrong','chart','timeframe'].forEach(k=>{ if(!cur[k] && b[k]){ cur[k]=b[k]; filled++; } });
+      if((cur.notes===null||cur.notes===undefined) && b.notes!==null && b.notes!==undefined){ cur.notes=b.notes; filled++; }
+    });
+    Object.entries(data.accounts||{}).forEach(([name,list])=>{
+      if(!BROKER_CONFIG[name]||!BROKER_CONFIG[name].param||!Array.isArray(list)) return;
+      const have=getAccounts(name);
+      list.forEach(a=>{
+        if(a&&a.value&&!have.some(h=>h.value.toLowerCase()===String(a.value).toLowerCase())){
+          have.push({id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),value:a.value});
+        }
+      });
+      saveAccounts(name,have);
+    });
+    save(); render(); renderConnections();
+    toast(`Restored ${added} trade${added===1?'':'s'}${filled?` and filled in ${filled} blank${filled===1?'':'s'}`:''}`);
+  };
+  r.readAsText(file);
+}
+
 // ---- new-trades review modal, same behavior as the original ----
 // Dismissals persist in localStorage so this only reopens for genuinely
 // new trades, never on every page visit.
@@ -33,10 +192,17 @@ function dismissReview(ids){
   const next=[...d, ...ids.filter(id=>!d.includes(id))];
   localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
 }
+const REVIEW_WINDOW_MS=7*86400000;
 function pendingReviewTrades(){
-  // Synced trades (not manual) that haven't had notes added yet.
-  const dismissed=loadDismissed();
-  return trades.filter(t=>t.broker!=='Manual' && (t.notes===null||t.notes===undefined) && !dismissed.includes(t.id));
+  // Synced trades (not manual) with no notes yet, from the last 7 days — "while they're fresh".
+  // Without the time limit, syncing your full history would open a popup with every old trade.
+  const dismissed=loadDismissed(), cutoff=Date.now()-REVIEW_WINDOW_MS;
+  return trades.filter(t=>{
+    if(t.broker==='Manual' || dismissed.includes(t.id)) return false;
+    if(!(t.notes===null||t.notes===undefined)) return false;
+    const when=(typeof t.closeTs==='number')?t.closeTs:t.ts;
+    return typeof when==='number' && when>=cutoff;
+  });
 }
 function fmtReviewDate(t){
   const d=new Date(t.date+'T'+(t.time||'00:00')+':00');
@@ -202,7 +368,7 @@ document.getElementById('tradeForm').addEventListener('submit',e=>{
   const entryAtVal=document.getElementById('f_entryAt').value || toLocalInput(new Date());
   const exitAtVal=document.getElementById('f_exitAt').value;
   const data={
-    date:entryAtVal.slice(0,10), time:entryAtVal.slice(11,16), exitAt:exitAtVal||null, session:sessionFor(entryAtVal.slice(11,16)),
+    date:entryAtVal.slice(0,10), time:entryAtVal.slice(11,16), ts:new Date(entryAtVal).getTime(), exitAt:exitAtVal||null, session:sessionFor(utcTimeStr(new Date(entryAtVal).getTime())),
     symbol:document.getElementById('f_symbol').value.toUpperCase(), direction:document.getElementById('f_direction').value,
     asset_class:document.getElementById('f_asset').value, timeframe:document.getElementById('f_timeframe').value,
     entry:parseFloat(document.getElementById('f_entry').value), exit:exitVal===''?null:parseFloat(exitVal),
@@ -379,7 +545,7 @@ function moonKind(dateStr){
   const ref=Date.UTC(2000,0,6,18,14,0);
   // Read the date at the END of the day, so the day a new or full moon happens
   // already counts as that phase ("when the New Moon starts...").
-  const d=new Date(dateStr+'T23:59:59Z').getTime();
+  const d=new Date(dateStr+'T23:59:59').getTime(); // end of that day in your local time
   const cycle=29.53059;
   const phase=(((d-ref)/86400000)%cycle+cycle)%cycle;
   return phase<cycle/2 ? 'new' : 'full';
@@ -684,29 +850,40 @@ async function syncBroker(name,endpoint,silent,accountId){
     paramValue=acc.value;
   }
   if(syncInFlight[key]) return;
+  if(!storedKey() && !keyPromise){
+    if(silent && keyPromptedThisLoad) return; // background syncs ask for the key at most once per visit
+    keyPromptedThisLoad=true;
+  }
   syncInFlight[key]=true;
-  const btn=document.querySelector(`.sync-btn[data-key="${key}"]`);
+  const btn=document.querySelector(`.sync-btn[data-sync-key="${key}"]`);
   if(btn){ btn.disabled=true; btn.textContent='Syncing…'; }
   try{
-    const m=connMeta[key];
-    // Only pull trades since the last sync, so background syncs stay small.
-    const since=m?new Date(m.date).getTime():Date.now()-90*86400000;
+    const acct=paramValue?paramValue.toLowerCase():null;
+    // Only ask for what could have changed since the last sync (see computeSince).
+    const since=computeSince(connMeta[key],trades,name,acct,Date.now());
     const paramPart=cfg&&cfg.param?`&${cfg.param}=${encodeURIComponent(paramValue)}`:'';
-    const res=await fetch(`${endpoint}?since=${since}${paramPart}`);
+    const res=await apiFetch(`${endpoint}?since=${since}${paramPart}`);
     const body=await res.json();
     if(!res.ok) throw new Error(body.error||'Sync failed');
-    const incoming=body.trades||[];
-    trades=trades.filter(t=>!(t.broker===name&&incoming.some(x=>x.id===t.id))).concat(incoming);
+    const incoming=(body.trades||[]).map(t=>normalizeIncoming({...t}));
+    // "New" means a trade you have never had, not one that was merely re-sent.
+    const known=new Set(trades.map(t=>t.id));
+    const newOnes=incoming.filter(t=>!known.has(t.id) && !(t.fillIds||[]).some(f=>known.has(String(f))));
+    trades=mergeSynced(trades,incoming,{broker:name,account:acct,openOk:body.openOk===true});
     save();
-    connMeta[key]={date:new Date().toISOString().slice(0,10),count:incoming.length,balance:(typeof body.balance==='number'?body.balance:null)}; saveConnMeta();
+    connMeta[key]={
+      date:new Date().toISOString().slice(0,10),
+      count:countFor(trades,name,acct),
+      balance:(typeof body.balance==='number'?body.balance:(connMeta[key]&&connMeta[key].balance!=null?connMeta[key].balance:null)),
+    };
+    saveConnMeta();
     render();
-    if(!silent || incoming.length>0){
-      toast(incoming.length>0 ? `Imported ${incoming.length} trade(s) from ${name}` : 'Already up to date');
-    }
-    if(incoming.length>0) checkNewTradesReview();
+    if(newOnes.length>0) toast(`Imported ${newOnes.length} new trade${newOnes.length===1?'':'s'} from ${name}`);
+    else if(!silent) toast('Already up to date');
+    if(newOnes.length>0) checkNewTradesReview();
   }catch(err){
-    if(!silent) toast(`Sync failed: ${err.message||'unknown error'}`,'error');
-    // Silent background syncs fail quietly — no popup interrupting the person.
+    // Silent background syncs stay quiet, except when the access key is the problem.
+    if(!silent || err.auth) toast(`Sync failed: ${err.message||'unknown error'}`,'error');
   }finally{
     syncInFlight[key]=false;
     if(document.getElementById('view-conn').classList.contains('hidden')===false) renderConnections();
@@ -744,7 +921,7 @@ function renderConnections(){
           </div>
           <p class="mt-1 truncate text-xs text-muted-foreground">${meta?`Last synced ${meta.date} · ${meta.count} trade(s)${meta.balance!=null?` · ${fmtMoney(meta.balance)}`:''}`:'Not synced yet'}</p>
         </div>
-        <button data-sync-name="${name}" data-endpoint="${cfg.endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
+        <button data-sync-key="${name}" data-sync-name="${name}" data-endpoint="${cfg.endpoint}" class="sync-btn inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now
         </button>
       </div>`;
@@ -822,6 +999,28 @@ function renderConnections(){
     }));
     wrap.appendChild(section);
   });
+
+  const safety=document.createElement('div');
+  safety.className='rounded-lg border bg-card p-4 shadow-sm';
+  safety.innerHTML=`<div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="font-medium">Backup</p>
+        <p class="mt-1 text-xs text-muted-foreground">Your notes, strategies and screenshots live only in this browser. Download a copy now and then.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="backupDownload" class="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">Download backup</button>
+        <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent">Restore<input id="backupRestore" type="file" accept=".json,application/json" class="hidden"></label>
+      </div>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+      <p class="text-xs text-muted-foreground">Access key: ${storedKey()?'saved on this device':'not entered yet'}</p>
+      ${storedKey()?'<button id="forgetKey" class="text-xs text-muted-foreground underline hover:text-foreground">Remove from this device</button>':''}
+    </div>`;
+  safety.querySelector('#backupDownload').addEventListener('click',downloadBackup);
+  safety.querySelector('#backupRestore').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) restoreBackup(f); e.target.value=''; });
+  const fk=safety.querySelector('#forgetKey');
+  if(fk) fk.addEventListener('click',()=>{ try{ localStorage.removeItem(ACCESS_KEY_STORAGE); }catch(err){} renderConnections(); toast('Access key removed from this device'); });
+  wrap.appendChild(safety);
 }
 
 render();

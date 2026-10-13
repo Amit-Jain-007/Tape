@@ -1,12 +1,21 @@
 // /api/trades — the ONLY place your Bitunix API key/secret are ever used.
 // They live in Vercel's environment variables, never in any file you commit
-// and never sent to the browser. The frontend calls this endpoint; this
-// endpoint calls Bitunix.
+// and never sent to the browser. The page calls this endpoint; this endpoint
+// calls Bitunix.
+//
+// Access is protected by your access key (see lib/auth.js), so nobody else
+// can use your deployment to read your trades or balance.
 
 const crypto = require('crypto');
+const requireAccess = require('../lib/auth');
 
 const API_KEY = process.env.BITUNIX_API_KEY;
 const API_SECRET = process.env.BITUNIX_API_SECRET;
+
+const DAY = 86400000;
+const PAGE = 100; // Bitunix's maximum per request
+const MAX_PAGES = 15; // safety cap: 1,500 positions per sync
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function sign(query) {
   const sortedQuery = [...query.entries()]
@@ -51,12 +60,61 @@ const direction = (r) => {
   // Handle both: BUY/LONG -> long, SELL/SHORT -> short.
   return s === 'SELL' || s.includes('SHORT') ? 'short' : 'long';
 };
+const rowsOf = (body) =>
+  Array.isArray(body?.data?.positionList) ? body.data.positionList : Array.isArray(body?.data) ? body.data : [];
+const idOf = (r) => String(r.positionId ?? r.id ?? `${r.symbol}-${r.ctime}`);
+
+// One request returns at most 100 positions, so keep reading until a page comes back short.
+async function fetchAllHistory(sinceMs) {
+  const seen = new Set();
+  const all = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const body = await bitunixGet(
+      '/api/v1/futures/position/get_history_positions',
+      new URLSearchParams({ limit: String(PAGE), skip: String(page * PAGE), startTime: String(sinceMs) }),
+    );
+    const rows = rowsOf(body);
+    let added = 0;
+    for (const r of rows) {
+      const id = idOf(r);
+      if (!seen.has(id)) {
+        seen.add(id);
+        all.push(r);
+        added++;
+      }
+    }
+    // Short page = the last one. Nothing new = the server ignored `skip`; stop instead of looping.
+    if (rows.length < PAGE || added === 0) break;
+    await sleep(120); // stay under Bitunix's 10 requests/second limit
+  }
+  return all;
+}
+
+function toTrade(r, isOpen) {
+  const ts = num(r.ctime ?? r.createTime) || Date.now();
+  const iso = new Date(ts).toISOString();
+  return {
+    id: idOf(r),
+    symbol: String(r.symbol ?? 'UNKNOWN'),
+    direction: direction(r),
+    ts, // when the position was opened (ms)
+    closeTs: isOpen ? null : num(r.mtime) || null,
+    date: iso.slice(0, 10), // UTC; the page recomputes these in your local time from `ts`
+    time: iso.slice(11, 16),
+    entry: optNum(r.entryPrice ?? r.averagePrice ?? (isOpen ? r.openAvgPrice : undefined)) ?? 0,
+    exit: isOpen ? null : optNum(r.closePrice ?? r.exitPrice),
+    qty: (isOpen ? optNum(r.qty ?? r.maxQty) : optNum(r.maxQty ?? r.qty)) ?? 0,
+    fees: isOpen ? Math.abs(num(r.funding ?? 0)) : Math.abs(num(r.fee)) + Math.abs(num(r.funding ?? 0)),
+    broker: 'Bitunix',
+    asset_class: 'crypto',
+    strategy: '',
+    notes: null, // null = not reviewed yet (this is what lets the review popup appear)
+    chart: null,
+  };
+}
 
 module.exports = async (req, res) => {
-  // Lock this down to your own frontend once you know its URL.
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!requireAccess(req, res)) return;
 
   if (!API_KEY || !API_SECRET) {
     return res
@@ -65,76 +123,34 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const sinceMs = req.query.since ? Number(req.query.since) : Date.now() - 90 * 86400000;
+    const sinceMs = Number(req.query.since) > 0 ? Number(req.query.since) : Date.now() - 730 * DAY;
 
-    const historyBody = await bitunixGet(
-      '/api/v1/futures/position/get_history_positions',
-      new URLSearchParams({ limit: '100', startTime: String(sinceMs) }),
-    );
-    const historyRows = Array.isArray(historyBody?.data?.positionList)
-      ? historyBody.data.positionList
-      : Array.isArray(historyBody?.data)
-        ? historyBody.data
-        : [];
-    const closed = historyRows.map((r) => ({
-      id: String(r.positionId ?? r.id ?? `${r.symbol}-${r.ctime}`),
-      symbol: String(r.symbol ?? 'UNKNOWN'),
-      direction: direction(r),
-      date: new Date(num(r.ctime ?? r.createTime ?? Date.now())).toISOString().slice(0, 10),
-      time: new Date(num(r.ctime ?? r.createTime ?? Date.now())).toISOString().slice(11, 16),
-      entry: optNum(r.entryPrice ?? r.averagePrice) ?? 0,
-      exit: optNum(r.closePrice ?? r.exitPrice),
-      qty: optNum(r.maxQty ?? r.qty) ?? 0,
-      fees: Math.abs(num(r.fee)) + Math.abs(num(r.funding ?? 0)),
-      broker: 'Bitunix',
-      asset_class: 'crypto',
-      strategy: '',
-      notes: '',
-      chart: null,
-    }));
+    const closed = (await fetchAllHistory(sinceMs)).map((r) => toTrade(r, false));
 
     let open = [];
+    let openOk = false;
     try {
-      const pendingBody = await bitunixGet(
-        '/api/v1/futures/position/get_pending_positions',
-        new URLSearchParams(),
-      );
-      const pendingRows = Array.isArray(pendingBody?.data)
-        ? pendingBody.data
-        : Array.isArray(pendingBody?.data?.positionList)
-          ? pendingBody.data.positionList
-          : [];
-      open = pendingRows.map((r) => ({
-        id: String(r.positionId ?? r.id ?? `${r.symbol}-open-${r.ctime ?? r.createTime}`),
-        symbol: String(r.symbol ?? 'UNKNOWN'),
-        direction: direction(r),
-        date: new Date(num(r.ctime ?? r.createTime ?? Date.now())).toISOString().slice(0, 10),
-        time: new Date(num(r.ctime ?? r.createTime ?? Date.now())).toISOString().slice(11, 16),
-        entry: optNum(r.entryPrice ?? r.averagePrice ?? r.openAvgPrice) ?? 0,
-        exit: null,
-        qty: optNum(r.qty ?? r.maxQty) ?? 0,
-        fees: Math.abs(num(r.funding ?? 0)),
-        broker: 'Bitunix',
-      asset_class: 'crypto',
-        strategy: '',
-        notes: '',
-        chart: null,
-      }));
+      const pendingBody = await bitunixGet('/api/v1/futures/position/get_pending_positions', new URLSearchParams());
+      open = rowsOf(pendingBody).map((r) => toTrade(r, true));
+      openOk = true;
     } catch {
-      // history still returns even if the pending-positions call fails
+      // History still returns even if the open-positions call fails.
     }
 
     let balance = null;
     try {
       const acctBody = await bitunixGet('/api/v1/futures/account', new URLSearchParams({ marginCoin: 'USDT' }));
       const a = acctBody?.data ?? {};
-      balance =
-        num(a.available) + num(a.margin) + num(a.crossUnrealizedPNL) + num(a.isolationUnrealizedPNL);
+      balance = num(a.available) + num(a.margin) + num(a.crossUnrealizedPNL) + num(a.isolationUnrealizedPNL);
     } catch {
       // Trades still sync fine even if the balance call fails.
     }
 
-    res.status(200).json({ trades: [...closed, ...open], balance });
+    // If a position ever appears in both lists, the closed record wins.
+    const byId = new Map();
+    [...open, ...closed].forEach((t) => byId.set(t.id, t));
+
+    res.status(200).json({ trades: [...byId.values()], balance, openOk });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
   }
