@@ -1,8 +1,0 @@
-{
-  "name": "tape-server",
-  "private": true,
-  "version": "1.1.0",
-  "scripts": {
-    "build:css": "npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o public/tailwind.css --minify"
-  }
-}
