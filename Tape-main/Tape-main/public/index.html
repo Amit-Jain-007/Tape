@@ -40,6 +40,8 @@
   <h1 class="text-2xl font-bold text-foreground">Trading journal</h1>
   <p class="mt-1 text-sm text-muted-foreground" id="journalSub">Log your first trade to start building your record.</p>
 
+  <div id="heroSection" class="mt-6"></div>
+
   <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" id="stats"></div>
 
   <div id="chartsSection" class="mt-6"></div>
@@ -70,6 +72,7 @@
           <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Asset</th>
           <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Strategy</th>
           <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Session</th>
+          <th class="h-10 px-2 text-right align-middle font-medium text-muted-foreground">R</th>
           <th class="h-10 px-2 text-right align-middle font-medium text-muted-foreground">P&amp;L</th>
           <th class="h-10 w-20 px-2 text-right align-middle font-medium text-muted-foreground">Actions</th>
         </tr></thead>
@@ -162,6 +165,8 @@
         <div class="space-y-1.5"><label class="text-sm font-medium leading-none">Fees</label><input type="number" step="any" id="f_fees" value="0" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
         <div class="space-y-1.5"><label class="text-sm font-medium leading-none">Entry time</label><input type="datetime-local" id="f_entryAt" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
         <div class="space-y-1.5"><label class="text-sm font-medium leading-none">Exit time</label><input type="datetime-local" id="f_exitAt" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+        <div class="space-y-1.5"><label class="text-sm font-medium leading-none">Stop loss</label><input type="number" step="any" id="f_stop" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
+        <div class="space-y-1.5"><label class="text-sm font-medium leading-none">Target</label><input type="number" step="any" id="f_target" class="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></div>
       </div>
 
       <div id="pnlPreview" class="hidden rounded-xl px-4 py-2.5 text-sm font-semibold"></div>
@@ -211,6 +216,7 @@
 </div>
 
 <script src="charts.js"></script>
+<script src="drawer.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

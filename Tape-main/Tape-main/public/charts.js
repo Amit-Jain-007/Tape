@@ -168,7 +168,7 @@ function moonKind(dateStr){
 // used in the trades table), not a made-up palette. Extra accounts of the
 // same broker share its color at lower opacity so they stay distinguishable.
 const BROKER_VAR={Bitunix:'var(--broker-bitunix)',Hyperliquid:'var(--broker-hyperliquid)',Binance:'var(--broker-binance)',BloFin:'var(--broker-blofin)',Manual:'var(--broker-manual)'};
-function buildCapitalPanel(){
+function capitalSlices(){
   const slices=[];
   Object.keys(BROKER_CONFIG).forEach(name=>{
     const cfg=BROKER_CONFIG[name];
@@ -187,6 +187,10 @@ function buildCapitalPanel(){
       if(meta&&typeof meta.balance==='number') slices.push({name,v:meta.balance,color,opacity:1});
     }
   });
+  return slices;
+}
+function buildCapitalPanel(){
+  const slices=capitalSlices();
   const total=slices.reduce((s,x)=>s+x.v,0);
   const inner = slices.length
     ? svgPie(slices.filter(s=>s.v>0),{money:true})
@@ -235,15 +239,16 @@ function rangeBar(){
 function wireRange(el,all){ el.querySelectorAll('[data-range]').forEach(b=>b.addEventListener('click',()=>{ chartRange=b.dataset.range; renderTradeCharts(all); })); }
 function fmtDur(ms){ if(!isFinite(ms)||ms<=0) return '—'; const m=Math.round(ms/60000); if(m<60) return m+'m'; const h=m/60; if(h<48) return h.toFixed(1)+'h'; return (h/24).toFixed(1)+'d'; }
 function strategyTable(list){
-  const m={}; list.forEach(t=>{ const k=(t.strategy||'').trim(); if(!k) return; (m[k]=m[k]||[]).push(pnl(t)); });
-  const rows=Object.entries(m).map(([name,ps])=>{
+  const m={}; list.forEach(t=>{ const k=(t.strategy||'').trim(); if(!k) return; (m[k]=m[k]||[]).push(t); });
+  const rows=Object.entries(m).map(([name,ts])=>{
+    const ps=ts.map(pnl), rs=ts.map(rMultiple).filter(x=>x!==null);
     const w=ps.filter(p=>p>0), l=ps.filter(p=>p<0), gw=w.reduce((s,p)=>s+p,0), gl=Math.abs(l.reduce((s,p)=>s+p,0));
     const wr=w.length/ps.length, aw=w.length?gw/w.length:0, al=l.length?gl/l.length:0;
-    return {name,n:ps.length,wr:wr*100,pf:gl>0?gw/gl:(gw>0?Infinity:null),exp:wr*aw-(1-wr)*al,net:ps.reduce((s,p)=>s+p,0)};
+    return {name,n:ps.length,wr:wr*100,pf:gl>0?gw/gl:(gw>0?Infinity:null),exp:wr*aw-(1-wr)*al,net:ps.reduce((s,p)=>s+p,0),r:rs.length?rs.reduce((s,x)=>s+x,0)/rs.length:null};
   }).sort((a,b)=>b.net-a.net);
   if(!rows.length) return '<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Tag your trades with a strategy to see this.</div>';
   const td='p-2 text-right whitespace-nowrap';
-  return `<div class="h-full overflow-auto"><table class="w-full text-sm"><thead><tr class="border-b text-xs uppercase text-muted-foreground"><th class="p-2 text-left">Strategy</th><th class="${td}">Trades</th><th class="${td}">Win %</th><th class="${td}">PF</th><th class="${td}">Expect.</th><th class="${td}">Net</th></tr></thead><tbody>${rows.map(r=>`<tr class="border-b last:border-0"><td class="max-w-40 truncate p-2 font-semibold">${r.name}</td><td class="${td}">${r.n}</td><td class="${td}">${r.wr.toFixed(0)}%</td><td class="${td}">${r.pf==null?'—':r.pf===Infinity?'∞':r.pf.toFixed(2)}</td><td class="${td} ${r.exp>=0?'text-gain':'text-loss'}">${fmtMoney(r.exp)}</td><td class="${td} font-semibold ${r.net>=0?'text-gain':'text-loss'}">${fmtMoney(r.net)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="h-full overflow-auto"><table class="w-full text-sm"><thead><tr class="border-b text-xs uppercase text-muted-foreground"><th class="p-2 text-left">Strategy</th><th class="${td}">Trades</th><th class="${td}">Win %</th><th class="${td}">PF</th><th class="${td}">Avg R</th><th class="${td}">Expect.</th><th class="${td}">Net</th></tr></thead><tbody>${rows.map(r=>`<tr class="border-b last:border-0"><td class="max-w-40 truncate p-2 font-semibold">${escHtml(r.name)}</td><td class="${td}">${r.n}</td><td class="${td}">${r.wr.toFixed(0)}%</td><td class="${td}">${r.pf==null?'—':r.pf===Infinity?'∞':r.pf.toFixed(2)}</td><td class="${td}">${fmtR(r.r)}</td><td class="${td} ${r.exp>=0?'text-gain':'text-loss'}">${fmtMoney(r.exp)}</td><td class="${td} font-semibold ${r.net>=0?'text-gain':'text-loss'}">${fmtMoney(r.net)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderTradeCharts(allClosed){
@@ -291,6 +296,9 @@ function renderTradeCharts(allClosed){
   const holds=chron.map(t=>t.closeTs-t.ts).filter(x=>isFinite(x)&&x>0);
   const avgHold=holds.length?holds.reduce((s,x)=>s+x,0)/holds.length:NaN;
   const net=chron.reduce((s,t)=>s+pnl(t),0);
+  const rs=chron.map(rMultiple).filter(x=>x!==null);
+  const rSum=rs.reduce((x,y)=>x+y,0);
+  const rCards=rs.length?[metricCard('Avg R',fmtR(rSum/rs.length),rSum>=0?'gain':'loss'),metricCard('Total R',fmtR(rSum),rSum>=0?'gain':'loss'),metricCard('Best R',fmtR(Math.max(...rs)),'gain'),metricCard('Worst R',fmtR(Math.min(...rs)),'loss')].join(''):'<div class="rounded-2xl border border-dashed bg-card p-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-4">Add a stop-loss to your trades (click a trade → Edit) to unlock R-multiple stats.</div>';
 
   el.innerHTML = rangeBar()+`
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -306,6 +314,7 @@ function renderTradeCharts(allClosed){
       ${metricCard('Worst trade',fmtMoney(worst),'loss')}
       ${metricCard('Best win streak',String(bestStreak))}
       ${metricCard('Worst loss streak',String(Math.abs(worstStreak)))}
+      ${rCards}
     </div>
     <div class="mt-4 grid gap-4 lg:grid-cols-3">
       ${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates),'lg:col-span-2')}
@@ -328,3 +337,59 @@ function renderTradeCharts(allClosed){
   wireTooltips(el); wireRange(el,allClosed);
 }
 
+
+// ---- hero: balance, P&L snapshot, goals ----
+const GOALS_KEY='tape_goals_v1';
+let goals={}; try{goals=JSON.parse(localStorage.getItem(GOALS_KEY)||'{}');}catch(e){goals={};}
+let goalsEditing=false, heroClosed=[];
+function localDay(ts){ const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function closeDay(t){ return t.closeTs?localDay(t.closeTs):(t.exitAt?String(t.exitAt).slice(0,10):t.date); }
+function sparkline(vals){
+  if(vals.length<2) return '';
+  const W=240,H=56,mn=Math.min(...vals),mx=Math.max(...vals),sp=(mx-mn)||1;
+  const pts=vals.map((v,i)=>`${(i/(vals.length-1)*W).toFixed(1)},${(H-4-(v-mn)/sp*(H-8)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-14 w-full"><polyline points="${pts}" fill="none" stroke="${vals[vals.length-1]>=vals[0]?'var(--gain)':'var(--loss)'}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function goalBar(label,text,pct,color,note){
+  return `<div><div class="flex items-baseline justify-between text-xs"><span class="font-semibold uppercase tracking-wide text-muted-foreground">${label}</span><span class="font-semibold">${text}</span></div>
+    <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-secondary"><div class="h-full rounded-full" style="width:${Math.max(0,Math.min(100,pct))}%;background:${color}"></div></div>
+    ${note?`<p class="mt-1 text-xs text-muted-foreground">${note}</p>`:''}</div>`;
+}
+function renderHero(closed){
+  heroClosed=closed;
+  const el=document.getElementById('heroSection'); if(!el) return;
+  const now=Date.now(), today=localDay(now), month=today.slice(0,7), wk=localDay(now-6*86400000);
+  const sum=f=>closed.filter(f).reduce((s,t)=>s+pnl(t),0);
+  const dayP=sum(t=>closeDay(t)===today), weekP=sum(t=>closeDay(t)>=wk), monthP=sum(t=>closeDay(t).startsWith(month));
+  const slices=capitalSlices(), bal=slices.reduce((s,x)=>s+x.v,0);
+  let cum=0; const vals=[0,...[...closed].sort((a,b)=>(a.closeTs||a.ts||0)-(b.closeTs||b.ts||0)).slice(-40).map(t=>cum+=pnl(t))];
+  const tone=v=>v>0?'text-gain':v<0?'text-loss':'';
+  const pill=(l,v)=>`<div><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">${l}</p><p class="mt-0.5 font-display text-lg font-bold ${tone(v)}">${v>0?'+':''}${fmtMoney(v)}</p></div>`;
+  const left=`<div class="rounded-2xl border bg-card p-5 shadow-soft lg:col-span-2">
+    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total balance</p>
+    <div class="mt-1 flex flex-wrap items-end justify-between gap-4">
+      <div><p class="font-display text-4xl font-bold">${slices.length?fmtMoney(bal):'—'}</p>
+      ${slices.length?'':'<p class="mt-1 text-sm text-muted-foreground">Sync an account to see your balance.</p>'}</div>
+      <div class="flex gap-6">${pill('Today',dayP)}${pill('7 days',weekP)}${pill('This month',monthP)}</div>
+    </div><div class="mt-3">${sparkline(vals)}</div></div>`;
+  let right;
+  if(goalsEditing){
+    const inp='mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm';
+    right=`<div class="rounded-2xl border bg-card p-5 shadow-soft"><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Set goals</p>
+      <label class="mt-3 block text-sm font-medium">Monthly profit target ($)<input id="goalTarget" type="number" min="0" step="any" value="${goals.target||''}" class="${inp}"></label>
+      <label class="mt-3 block text-sm font-medium">Daily loss limit ($)<input id="goalLoss" type="number" min="0" step="any" value="${goals.dailyLoss||''}" class="${inp}"></label>
+      <div class="mt-4 flex gap-2"><button id="goalSave" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">Save</button><button id="goalCancel" class="inline-flex h-9 items-center rounded-md border border-input px-4 text-sm font-medium hover:bg-accent">Cancel</button></div></div>`;
+  } else {
+    const bars=[];
+    if(goals.target>0) bars.push(goalBar('Monthly target',`${fmtMoney(monthP)} / ${fmtMoney(goals.target)}`,monthP/goals.target*100,'var(--gain)',monthP>=goals.target?'Target reached 🎯':`${Math.max(0,Math.round(monthP/goals.target*100))}% of the way there`));
+    if(goals.dailyLoss>0){ const lost=Math.max(0,-dayP), pct=lost/goals.dailyLoss*100;
+      bars.push(goalBar('Daily loss limit',`${fmtMoney(-lost)} / ${fmtMoney(-goals.dailyLoss)}`,pct,pct>=100?'var(--loss)':pct>=70?'oklch(0.75 0.15 75)':'var(--primary)',pct>=100?'Limit hit. Stop trading for today.':'')); }
+    right=`<div class="rounded-2xl border bg-card p-5 shadow-soft"><div class="flex items-center justify-between"><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Goals</p><button id="goalEdit" class="text-xs font-semibold text-primary hover:underline">${bars.length?'Edit':'Set goals'}</button></div>
+      <div class="mt-3 space-y-4">${bars.join('')||'<p class="text-sm text-muted-foreground">Set a monthly profit target and a daily loss limit to stay disciplined.</p>'}</div></div>`;
+  }
+  el.innerHTML=`<div class="grid gap-4 lg:grid-cols-3">${left}${right}</div>`;
+  const on=(id,fn)=>{ const b=document.getElementById(id); if(b) b.addEventListener('click',fn); };
+  on('goalEdit',()=>{ goalsEditing=true; renderHero(heroClosed); });
+  on('goalCancel',()=>{ goalsEditing=false; renderHero(heroClosed); });
+  on('goalSave',()=>{ goals={target:Number(document.getElementById('goalTarget').value)||0,dailyLoss:Number(document.getElementById('goalLoss').value)||0}; try{localStorage.setItem(GOALS_KEY,JSON.stringify(goals));}catch(e){} goalsEditing=false; renderHero(heroClosed); });
+}

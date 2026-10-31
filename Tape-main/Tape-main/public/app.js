@@ -300,6 +300,7 @@ function openForm(id){
   editingId=id;
   const f=document.getElementById('tradeForm'); f.reset();
   document.getElementById('f_entryAt').value=toLocalInput(new Date()); document.getElementById('f_exitAt').value='';
+  document.getElementById('f_stop').value=''; document.getElementById('f_target').value='';
   document.getElementById('f_fees').value='0'; document.getElementById('f_timeframe').value='intraday'; document.getElementById('f_asset').value='stocks';
   resetChartPreview();
   if(id){
@@ -310,6 +311,7 @@ function openForm(id){
     document.getElementById('f_qty').value=t.qty; document.getElementById('f_fees').value=t.fees||0;
     document.getElementById('f_entryAt').value=t.date&&t.time?`${t.date}T${t.time}`:toLocalInput(new Date());
     document.getElementById('f_exitAt').value=t.exitAt||'';
+    document.getElementById('f_stop').value=t.stop==null?'':t.stop; document.getElementById('f_target').value=t.target==null?'':t.target;
     document.getElementById('f_strategy').value=t.strategy||''; document.getElementById('f_notes').value=t.notes||'';
     document.getElementById('f_well').value=t.wentWell||''; document.getElementById('f_wrong').value=t.wentWrong||'';
     if(t.chart) showChartPreview(t.chart);
@@ -366,6 +368,7 @@ document.getElementById('tradeForm').addEventListener('submit',e=>{
     asset_class:document.getElementById('f_asset').value, timeframe:document.getElementById('f_timeframe').value,
     entry:parseFloat(document.getElementById('f_entry').value), exit:exitVal===''?null:parseFloat(exitVal),
     qty:parseFloat(document.getElementById('f_qty').value), fees:parseFloat(document.getElementById('f_fees').value)||0,
+    stop:document.getElementById('f_stop').value===''?null:parseFloat(document.getElementById('f_stop').value), target:document.getElementById('f_target').value===''?null:parseFloat(document.getElementById('f_target').value),
     strategy:document.getElementById('f_strategy').value, notes:document.getElementById('f_notes').value,
     wentWell:document.getElementById('f_well').value, wentWrong:document.getElementById('f_wrong').value,
   };
@@ -383,7 +386,7 @@ function render(){
   body.innerHTML=''; empty.classList.toggle('hidden', list.length>0 || trades.length>0);
   document.querySelector('table').parentElement.querySelector('.hidden.py-12') && (document.getElementById('emptyMsg').classList.toggle('hidden', trades.length>0));
   [...list].reverse().forEach(t=>{
-    const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b last:border-0';
+    const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b last:border-0 cursor-pointer';
     tr.innerHTML=`<td class="whitespace-nowrap p-2 align-middle text-muted-foreground">${new Date(t.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</td>
       <td class="p-2 align-middle font-semibold">${t.symbol}</td>
       <td class="p-2 align-middle"><span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ${BROKER_COLOR[t.broker||'Manual']||'bg-broker-manual'}"></span><span class="text-xs text-muted-foreground whitespace-nowrap">${t.broker||'Manual'}</span></span></td>
@@ -392,12 +395,14 @@ function render(){
       <td class="p-2 align-middle capitalize text-muted-foreground">${t.asset_class||'crypto'}</td>
       <td class="max-w-40 truncate p-2 align-middle text-muted-foreground">${t.strategy||'—'}</td>
       <td class="whitespace-nowrap p-2 align-middle text-muted-foreground">${t.session||sessionFor(t.time)}</td>
+      <td class="p-2 align-middle text-right text-muted-foreground">${fmtR(rMultiple(t))}</td>
       <td class="p-2 align-middle text-right font-semibold ${open?'text-muted-foreground':(p>=0?'text-gain':'text-loss')}">${open?'Open':fmtMoney(p)}</td>
       <td class="p-2 align-middle text-right"><div class="flex justify-end gap-1">
         ${t.chart?`<button data-view-chart="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>`:''}
         <button data-edit="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
         <button data-del="${t.id}" class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"><svg class="icon text-destructive" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
       </div></td>`;
+    tr.addEventListener('click',e=>{ if(e.target.closest('button')) return; openDrawer(t.id); });
     body.appendChild(tr);
   });
   body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{trades=trades.filter(t=>t.id!==b.dataset.del);save();render();}));
@@ -429,6 +434,7 @@ function render(){
   document.querySelector('#statusSeg [data-status=closed]').textContent=`Closed (${closed.length})`;
 
   renderTradeCharts(closed);
+  renderHero(closed);
 }
 function statCard(iconPath,label,value,tone){
   const color = tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
@@ -441,6 +447,9 @@ function renderCalendar(){
   const y=calDate.getFullYear(), m=calDate.getMonth();
   document.getElementById('calMonth').textContent=calDate.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   const byDay={}; trades.forEach(t=>{(byDay[t.date]=byDay[t.date]||[]).push(t);});
+  const prefix=`${y}-${String(m+1).padStart(2,'0')}`; let maxAbs=0, monthPnl=0;
+  Object.entries(byDay).forEach(([k,l])=>{ if(k.startsWith(prefix)){ const s=l.reduce((x,t)=>x+(pnl(t)||0),0); maxAbs=Math.max(maxAbs,Math.abs(s)); monthPnl+=s; } });
+  document.getElementById('calMonth').textContent+=` · ${fmtMoney(monthPnl)}`;
   const first=new Date(y,m,1), startPad=first.getDay(), daysInMonth=new Date(y,m+1,0).getDate();
   const grid=document.getElementById('calGrid'); grid.innerHTML='';
   ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>grid.insertAdjacentHTML('beforeend',`<div class="bg-secondary p-2 text-center text-xs font-medium text-muted-foreground">${d}</div>`));
@@ -450,8 +459,9 @@ function renderCalendar(){
     const dayTrades=byDay[dateStr]||[]; const dp=dayTrades.reduce((s,t)=>s+(pnl(t)||0),0);
     const sel=dateStr===calSelDay;
     const cell=document.createElement('div');
-    cell.className='min-h-[70px] cursor-pointer bg-card p-2 hover:bg-accent'+(sel?' ring-2 ring-inset ring-primary':'');
-    cell.innerHTML=`<div class="text-xs font-medium text-muted-foreground">${d}</div>${dayTrades.length?`<div class="mt-1.5 text-xs font-semibold ${dp>=0?'text-gain':'text-loss'}">${fmtMoney(dp)}</div>`:''}`;
+    cell.className='cal-cell min-h-[70px] cursor-pointer p-2'+(sel?' ring-2 ring-inset ring-primary':'');
+    cell.style.background=dayTrades.length&&dp!==0&&maxAbs>0?`color-mix(in oklch, ${dp>0?'var(--gain)':'var(--loss)'} ${Math.round(12+43*Math.abs(dp)/maxAbs)}%, var(--card))`:'var(--card)';
+    cell.innerHTML=`<div class="text-xs font-medium text-muted-foreground">${d}</div>${dayTrades.length?`<div class="mt-1.5 text-xs font-semibold ${dp>=0?'text-gain':'text-loss'}">${fmtMoney(dp)}</div><div class="text-[10px] text-muted-foreground">${dayTrades.length} trade${dayTrades.length===1?'':'s'}</div>`:''}`;
     cell.addEventListener('click',()=>{calSelDay=dateStr;renderCalendar();renderCalDay(dayTrades,dateStr);});
     grid.appendChild(cell);
   }
