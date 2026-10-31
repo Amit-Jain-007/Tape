@@ -326,7 +326,6 @@ function renderTradeCharts(allClosed){
       ${chartPanel('Monthly P&L','Last 12 months', svgBar(monthly))}
       ${chartPanel('Win / loss split',`${chron.length} closed trades`, svgPie(winLoss))}
       ${chartPanel('P&L by symbol','Top instruments by impact', svgBar(bySymbol.map(d=>({label:d.name,v:d.pnl})),{horizontal:true}))}
-      ${chartPanel('Strategy breakdown','Win rate, profit factor and expectancy per setup', strategyTable(chron),'lg:col-span-2')}
       ${chartPanel('P&L by strategy','Which setups actually pay', byStrategy.length?svgBar(byStrategy.map(d=>({label:d.name,v:d.pnl})),{horizontal:true}):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Tag your trades with a strategy to see this.</div>')}
       ${chartPanel('Win rate by weekday','Where your edge shows up', svgBar(byWeekday,{signed:false}))}
       ${chartPanel('P&L by session','Asia / London / New York / Sydney', bySession.length?svgBar(bySession.map(d=>({label:d.name,v:d.pnl}))):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see session performance.</div>')}
@@ -360,7 +359,7 @@ function renderHero(closed){
   const el=document.getElementById('heroSection'); if(!el) return;
   const now=Date.now(), today=localDay(now), month=today.slice(0,7), wk=localDay(now-6*86400000);
   const sum=f=>closed.filter(f).reduce((s,t)=>s+pnl(t),0);
-  const dayP=sum(t=>closeDay(t)===today), weekP=sum(t=>closeDay(t)>=wk), monthP=sum(t=>closeDay(t).startsWith(month));
+  const dayP=sum(t=>closeDay(t)===today), weekP=sum(t=>closeDay(t)>=wk), monthP=sum(t=>closeDay(t).startsWith(month)), rolling30=sum(t=>closeDay(t)>=localDay(now-29*86400000));
   const slices=capitalSlices(), bal=slices.reduce((s,x)=>s+x.v,0);
   let cum=0; const vals=[0,...[...closed].sort((a,b)=>(a.closeTs||a.ts||0)-(b.closeTs||b.ts||0)).slice(-40).map(t=>cum+=pnl(t))];
   const tone=v=>v>0?'text-gain':v<0?'text-loss':'';
@@ -370,7 +369,7 @@ function renderHero(closed){
     <div class="mt-1 flex flex-wrap items-end justify-between gap-4">
       <div><p class="font-display text-4xl font-bold">${slices.length?fmtMoney(bal):'—'}</p>
       ${slices.length?'':'<p class="mt-1 text-sm text-muted-foreground">Sync an account to see your balance.</p>'}</div>
-      <div class="flex gap-6">${pill('Today',dayP)}${pill('7 days',weekP)}${pill('This month',monthP)}</div>
+      <div class="flex gap-6">${pill('Today',dayP)}${pill('7 days',weekP)}${pill('30 days',rolling30)}</div>
     </div><div class="mt-3">${sparkline(vals)}</div></div>`;
   let right;
   if(goalsEditing){
