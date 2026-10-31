@@ -29,6 +29,11 @@ function wireTooltips(container){
 function tipRow(label,value,color){
   return `<div class="font-semibold text-card-foreground">${label}</div><div class="mt-0.5" style="color:${color||'var(--card-foreground)'}">${value}</div>`;
 }
+function fmtAxis(v){ if(v===0) return '0'; const a=Math.abs(v), sg=v<0?'-':''; return sg+'$'+(a>=1e6?(a/1e6).toFixed(1).replace(/\.0$/,'')+'M':a>=1e3?(a/1e3).toFixed(1).replace(/\.0$/,'')+'k':String(Math.round(a*100)/100)); }
+function fmtMonth(k){ const d=new Date(k+'-01T00:00:00'); return isNaN(d)?k:d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}).replace(/ (\d\d)$/,' \u2019$1'); }
+function fmtDay(k){ const d=new Date(k+'T00:00:00'); return isNaN(d)?k:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+// Axis text is HTML laid over the SVG (SVG text gets stretched by preserveAspectRatio="none").
+function lbl(t,x,y,W,H,a){ const tr=a==='r'?'-100%,-50%':a==='l'?'0,-50%':'-50%,-50%'; return `<span class="chart-label" style="left:${(x/W*100).toFixed(2)}%;top:${(y/H*100).toFixed(2)}%;transform:translate(${tr})">${t}</span>`; }
 function svgBar(data,{horizontal=false,signed=true}={}){
   const W=520,H=200,PAD=34,LPAD=38,BPAD=18,TPAD=8;
   if(!data.length) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full"></svg>`;
@@ -42,7 +47,9 @@ function svgBar(data,{horizontal=false,signed=true}={}){
     const hMin=Math.min(min,hTicks[0]), hMax=Math.max(max,hTicks[hTicks.length-1]), hRange=(hMax-hMin)||1;
     const xOf=v=>xPAD+((v-hMin)/hRange)*(W-xPAD-10);
     const zeroX=xOf(0);
-    const grid=hTicks.map(t=>`<line x1="${xOf(t).toFixed(1)}" y1="0" x2="${xOf(t).toFixed(1)}" y2="${rowsH}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${xOf(t).toFixed(1)}" y="${H-3}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${niceLabel(t)}</text>`).join('');
+    const grid=hTicks.map(t=>`<line x1="${xOf(t).toFixed(1)}" y1="0" x2="${xOf(t).toFixed(1)}" y2="${rowsH}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('');
+    const hLabs=hTicks.map(t=>lbl(fmtAxis(t),xOf(t),H-7,W,H,'c')).join('');
+    const rowLabs=data.map((d,i)=>lbl(escHtml(d.label.length>12?d.label.slice(0,11)+'…':d.label),6,i*bh+bh/2,W,H,'l')).join('');
     const bars=data.map((d,i)=>{
       const x1=xOf(Math.min(0,d.v));
       const w=Math.abs(xOf(d.v)-xOf(0));
@@ -51,10 +58,9 @@ function svgBar(data,{horizontal=false,signed=true}={}){
       const color=d.v>=0?'var(--gain)':'var(--loss)';
       const tip=tipRow(d.label,fmtMoney(d.v),color).replace(/"/g,'&quot;');
       return `<rect data-tip="${tip}" class="row-hover" style="cursor:pointer" x="0" y="${rowY.toFixed(1)}" width="${W}" height="${bh.toFixed(1)}" fill="transparent"/>
-        <rect style="pointer-events:none" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>
-        <text style="pointer-events:none" x="4" y="${(rowY+bh/2+3).toFixed(1)}" font-size="9" fill="var(--muted-foreground)">${d.label.length>12?d.label.slice(0,11)+'…':d.label}</text>`;
+        <rect style="pointer-events:none" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>`;
     }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${rowsH}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg h-full w-full">${grid}<line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${rowsH}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}</svg>${hLabs}${rowLabs}`;
   }
   const bw=(W-LPAD)/data.length;
   const ticks=niceTicks(min,max,5);
@@ -68,11 +74,11 @@ function svgBar(data,{horizontal=false,signed=true}={}){
     const tip=tipRow(d.label,signed?fmtMoney(d.v):d.v+'%',color);
     return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="2" fill="${color}"/>`;
   }).join('');
-  const maxLabels=Math.max(2,Math.floor((W-LPAD)/38));
+  const maxLabels=Math.max(2,Math.floor((W-LPAD)/54));
   const everyN=Math.max(1,Math.ceil(data.length/maxLabels));
-  const xLabels=data.map((d,i)=>i%everyN===0?`<text x="${(LPAD+i*bw+bw/2).toFixed(1)}" y="${H-6}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${d.label}</text>`:'').join('');
-  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${signed?niceLabel(t):t}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}${xLabels}</svg>`;
+  const xLabels=data.map((d,i)=>i%everyN===0?lbl(escHtml(d.label),LPAD+i*bw+bw/2,H-8,W,H,'c'):'').join('');
+  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg h-full w-full">${grid}<line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}</svg>${xLabels}${ticks.map(t=>lbl(signed?fmtAxis(t):t+'%',LPAD-6,yOf(t),W,H,'r')).join('')}`;
 }
 // "Nice" round tick values, same idea as Recharts' default axis tick generator.
 function niceTicks(min,max,count){
@@ -110,11 +116,11 @@ function svgArea(series,labels,{loss:isLoss=false}={}){
     const tip=tipRow(labels&&labels[i]?labels[i]:'Point '+(i+1),fmtMoney(series[i]),color);
     return `<circle data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="7" fill="transparent"/>`;
   }).join('');
-  const maxLabels=Math.max(2,Math.floor((W-LPAD)/38));
+  const maxLabels=Math.max(2,Math.floor((W-LPAD)/54));
   const everyN=labels?Math.max(1,Math.ceil(labels.length/maxLabels)):0;
-  const xLabels=labels?labels.map((lb,i)=>i%everyN===0?`<text x="${coords[i][0].toFixed(1)}" y="${H-4}" font-size="9" text-anchor="middle" fill="var(--muted-foreground)">${lb}</text>`:'').join(''):'';
-  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/><text x="${LPAD-6}" y="${(yOf(t)+3).toFixed(1)}" font-size="9" text-anchor="end" fill="var(--muted-foreground)">${niceLabel(t)}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}${xLabels}</svg>`;
+  const xLabels=labels?labels.map((lb,i)=>i%everyN===0?lbl(lb,coords[i][0],H-8,W,H,'c'):'').join(''):'';
+  const grid=ticks.map(t=>`<line x1="${LPAD}" y1="${yOf(t).toFixed(1)}" x2="${W}" y2="${yOf(t).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg h-full w-full">${grid}<path d="${area}" fill="${fill}"/><line x1="${LPAD}" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--muted-foreground)" stroke-width="1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}</svg>${xLabels}${ticks.map(t=>lbl(fmtAxis(t),LPAD-6,yOf(t),W,H,'r')).join('')}`;
 }
 function svgPie(slices,{money=false}={}){
   const size=180,r=70,cx=90,cy=90;
@@ -134,7 +140,7 @@ function chartPanel(title,subtitle,inner,extraClass=''){
   return `<div class="rounded-2xl border bg-card p-5 shadow-soft ${extraClass}">
     <h3 class="text-sm font-bold text-card-foreground">${title}</h3>
     ${subtitle?`<p class="mt-0.5 text-xs text-muted-foreground">${subtitle}</p>`:''}
-    <div class="mt-3 h-56">${inner}</div></div>`;
+    <div class="chart-host mt-3 h-56">${inner}</div></div>`;
 }
 function metricCard(label,value,tone){
   const color=tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
@@ -265,12 +271,12 @@ function renderTradeCharts(allClosed){
   }
   const chron=[...closed].sort((a,b)=>(a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
   let equity=0,peak=0; const curve=chron.map(t=>{ equity+=pnl(t); peak=Math.max(peak,equity); return {equity,drawdown:equity-peak}; });
-  const curveDates=chron.map(t=>{ const d=new Date(t.date+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); });
+  const curveDates=chron.map(t=>fmtDay(t.date));
   const maxDrawdown=Math.min(0,...curve.map(c=>c.drawdown));
   const dailyMap={}; chron.forEach(t=>{ dailyMap[t.date]=(dailyMap[t.date]||0)+pnl(t); });
-  const daily=Object.entries(dailyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-30).map(([k,v])=>({label:k.slice(5),v}));
+  const daily=Object.entries(dailyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-30).map(([k,v])=>({label:fmtDay(k),v}));
   const monthlyMap={}; chron.forEach(t=>{ const k=t.date.slice(0,7); monthlyMap[k]=(monthlyMap[k]||0)+pnl(t); });
-  const monthly=Object.entries(monthlyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-12).map(([k,v])=>({label:k,v}));
+  const monthly=Object.entries(monthlyMap).sort(([a],[b])=>a.localeCompare(b)).slice(-12).map(([k,v])=>({label:fmtMonth(k),v}));
   const wins=chron.filter(t=>pnl(t)>0), losses=chron.filter(t=>pnl(t)<0), breakeven=chron.filter(t=>pnl(t)===0);
   const winLoss=[{name:'Wins',v:wins.length,color:'var(--gain)'},{name:'Losses',v:losses.length,color:'var(--loss)'},{name:'Breakeven',v:breakeven.length,color:'var(--muted-foreground)'}].filter(s=>s.v>0);
   const bySymbol=groupBy(chron,t=>t.symbol);
@@ -349,9 +355,9 @@ function sparkline(vals){
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*W).toFixed(1)},${(H-4-(v-mn)/sp*(H-8)).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-14 w-full"><polyline points="${pts}" fill="none" stroke="${vals[vals.length-1]>=vals[0]?'var(--gain)':'var(--loss)'}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
-function goalBar(label,text,pct,color,note){
+function goalBar(label,text,pct,color,note,mark){
   return `<div><div class="flex items-baseline justify-between text-xs"><span class="font-semibold uppercase tracking-wide text-muted-foreground">${label}</span><span class="font-semibold">${text}</span></div>
-    <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-secondary"><div class="h-full rounded-full" style="width:${Math.max(0,Math.min(100,pct))}%;background:${color}"></div></div>
+    <div class="relative mt-1.5 h-2 overflow-hidden rounded-full bg-secondary"><div class="h-full rounded-full" style="width:${Math.max(0,Math.min(100,pct))}%;background:${color}"></div>${mark!=null?`<div class="absolute top-0 h-full w-0.5 bg-foreground/60" style="left:${mark}%"></div>`:''}</div>
     ${note?`<p class="mt-1 text-xs text-muted-foreground">${note}</p>`:''}</div>`;
 }
 function renderHero(closed){
@@ -380,7 +386,12 @@ function renderHero(closed){
       <div class="mt-4 flex gap-2"><button id="goalSave" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">Save</button><button id="goalCancel" class="inline-flex h-9 items-center rounded-md border border-input px-4 text-sm font-medium hover:bg-accent">Cancel</button></div></div>`;
   } else {
     const bars=[];
-    if(goals.target>0) bars.push(goalBar('Monthly target',`${fmtMoney(monthP)} / ${fmtMoney(goals.target)}`,monthP/goals.target*100,'var(--gain)',monthP>=goals.target?'Target reached 🎯':`${Math.max(0,Math.round(monthP/goals.target*100))}% of the way there`));
+    if(goals.target>0){
+      const dt=new Date(), dim=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(), day=dt.getDate(), left=dim-day;
+      const expected=goals.target*day/dim, remaining=goals.target-monthP, pct=monthP/goals.target*100;
+      const note=monthP>=goals.target?'Target reached 🎯':`${left===0?'Last day':left+' day'+(left===1?'':'s')+' left'} · need ${fmtMoney(remaining/Math.max(left,1))}${left===0?'':'/day'}<br>${monthP>=expected?'Ahead of':'Behind'} pace by ${fmtMoney(Math.abs(monthP-expected))} <span class="opacity-70">(marker = where you should be today)</span>`;
+      bars.push(goalBar(`${dt.toLocaleDateString('en-US',{month:'long'})} target · ${Math.max(0,Math.round(pct))}%`,`${fmtMoney(monthP)} / ${fmtMoney(goals.target)}`,pct,monthP>=expected?'var(--gain)':'oklch(0.75 0.15 75)',note,expected/goals.target*100));
+    }
     if(goals.dailyLoss>0){ const lost=Math.max(0,-dayP), pct=lost/goals.dailyLoss*100;
       bars.push(goalBar('Daily loss limit',`${fmtMoney(-lost)} / ${fmtMoney(-goals.dailyLoss)}`,pct,pct>=100?'var(--loss)':pct>=70?'oklch(0.75 0.15 75)':'var(--primary)',pct>=100?'Limit hit. Stop trading for today.':'')); }
     right=`<div class="rounded-2xl border bg-card p-5 shadow-soft"><div class="flex items-center justify-between"><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Goals</p><button id="goalEdit" class="text-xs font-semibold text-primary hover:underline">${bars.length?'Edit':'Set goals'}</button></div>
