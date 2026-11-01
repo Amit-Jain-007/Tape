@@ -58,7 +58,7 @@ function svgBar(data,{horizontal=false,signed=true}={}){
       const color=d.v>=0?'var(--gain)':'var(--loss)';
       const tip=tipRow(d.label,fmtMoney(d.v),color).replace(/"/g,'&quot;');
       return `<rect data-tip="${tip}" class="row-hover" style="cursor:pointer" x="0" y="${rowY.toFixed(1)}" width="${W}" height="${bh.toFixed(1)}" fill="transparent"/>
-        <rect style="pointer-events:none" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>`;
+        <rect class="hbar" style="pointer-events:none;--i:${i};transform-origin:${d.v>=0?'0% 50%':'100% 50%'}" x="${x1.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w,1).toFixed(1)}" height="${(bh-8).toFixed(1)}" rx="3" fill="${color}"/>`;
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg h-full w-full">${grid}<line x1="${zeroX.toFixed(1)}" y1="0" x2="${zeroX.toFixed(1)}" y2="${rowsH}" stroke="var(--muted-foreground)" stroke-width="1"/>${bars}</svg>${hLabs}${rowLabs}`;
   }
@@ -72,7 +72,7 @@ function svgBar(data,{horizontal=false,signed=true}={}){
     const y1=yOf(Math.max(0,d.v)), y2=yOf(Math.min(0,d.v));
     const color=signed?(d.v>=0?'var(--gain)':'var(--loss)'):'var(--primary)';
     const tip=tipRow(d.label,signed?fmtMoney(d.v):d.v+'%',color);
-    return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="2" fill="${color}"/>`;
+    return `<rect data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s;--i:${i};transform-origin:${d.v>=0?'50% 100%':'50% 0%'}" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(bw-4,1).toFixed(1)}" height="${Math.max(y2-y1,1).toFixed(1)}" rx="2" fill="${color}"/>`;
   }).join('');
   const maxLabels=Math.max(2,Math.floor((W-LPAD)/54));
   const everyN=Math.max(1,Math.ceil(data.length/maxLabels));
@@ -134,7 +134,7 @@ function svgPie(slices,{money=false}={}){
     return `<path data-tip="${tip.replace(/"/g,'&quot;')}" style="cursor:pointer;transition:opacity .15s" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${s.color}" fill-opacity="${s.opacity??1}"/>`;
   }).join('');
   const legend=slices.map(s=>`<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span class="h-2.5 w-2.5 rounded-full" style="background:${s.color};opacity:${s.opacity??1}"></span>${s.name}${money?` — ${fmtMoney(s.v)}`:''}</span>`).join('');
-  return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-wrap items-center justify-center gap-4">${legend}</div></div>`;
+  return `<div class="flex h-full flex-col items-center justify-center gap-3"><svg viewBox="0 0 ${size} ${size}" class="pie-svg h-44 w-44"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--secondary)"/>${paths}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--card)"/></svg><div class="flex flex-wrap items-center justify-center gap-4">${legend}</div></div>`;
 }
 function chartPanel(title,subtitle,inner,extraClass=''){
   return `<div class="rounded-2xl border bg-card p-5 shadow-soft ${extraClass}">
@@ -340,6 +340,7 @@ function renderTradeCharts(allClosed){
       ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution),'lg:col-span-2')}
     </div>`;
   wireTooltips(el); wireRange(el,allClosed);
+  fxPulse(el,`${closed.length}|${net.toFixed(2)}|${chartRange}`);
 }
 
 
@@ -353,15 +354,16 @@ function sparkline(vals){
   if(vals.length<2) return '';
   const W=240,H=56,mn=Math.min(...vals),mx=Math.max(...vals),sp=(mx-mn)||1;
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*W).toFixed(1)},${(H-4-(v-mn)/sp*(H-8)).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-14 w-full"><polyline points="${pts}" fill="none" stroke="${vals[vals.length-1]>=vals[0]?'var(--gain)':'var(--loss)'}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-14 w-full"><polyline class="spark" points="${pts}" fill="none" stroke="${vals[vals.length-1]>=vals[0]?'var(--gain)':'var(--loss)'}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 function goalBar(label,text,pct,color,note,mark){
   return `<div><div class="flex items-baseline justify-between text-xs"><span class="font-semibold uppercase tracking-wide text-muted-foreground">${label}</span><span class="font-semibold">${text}</span></div>
-    <div class="relative mt-1.5 h-2 overflow-hidden rounded-full bg-secondary"><div class="h-full rounded-full" style="width:${Math.max(0,Math.min(100,pct))}%;background:${color}"></div>${mark!=null?`<div class="absolute top-0 h-full w-0.5 bg-foreground/60" style="left:${mark}%"></div>`:''}</div>
+    <div class="relative mt-1.5 h-2 overflow-hidden rounded-full bg-secondary"><div class="goal-fill h-full rounded-full" data-k="${label.replace(/[^a-zA-Z]/g,'').slice(0,8)}" data-w="${Math.max(0,Math.min(100,pct))}" style="width:${goalW[label.replace(/[^a-zA-Z]/g,'').slice(0,8)]??0}%;background:${color}"></div>${mark!=null?`<div class="absolute top-0 h-full w-0.5 bg-foreground/60" style="left:${mark}%"></div>`:''}</div>
     ${note?`<p class="mt-1 text-xs text-muted-foreground">${note}</p>`:''}</div>`;
 }
 function renderHero(closed){
   heroClosed=closed;
+  document.documentElement.classList.remove('limit-hit');
   const el=document.getElementById('heroSection'); if(!el) return;
   const now=Date.now(), today=localDay(now), month=today.slice(0,7), wk=localDay(now-6*86400000);
   const sum=f=>closed.filter(f).reduce((s,t)=>s+pnl(t),0);
@@ -388,16 +390,19 @@ function renderHero(closed){
     const bars=[];
     if(goals.target>0){
       const dt=new Date(), dim=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(), day=dt.getDate(), left=dim-day;
+      if(monthP>=goals.target) celebrate(month);
       const expected=goals.target*day/dim, remaining=goals.target-monthP, pct=monthP/goals.target*100;
       const note=monthP>=goals.target?'Target reached 🎯':`${left===0?'Last day':left+' day'+(left===1?'':'s')+' left'} · need ${fmtMoney(remaining/Math.max(left,1))}${left===0?'':'/day'}<br>${monthP>=expected?'Ahead of':'Behind'} pace by ${fmtMoney(Math.abs(monthP-expected))} <span class="opacity-70">(marker = where you should be today)</span>`;
       bars.push(goalBar(`${dt.toLocaleDateString('en-US',{month:'long'})} target · ${Math.max(0,Math.round(pct))}%`,`${fmtMoney(monthP)} / ${fmtMoney(goals.target)}`,pct,monthP>=expected?'var(--gain)':'oklch(0.75 0.15 75)',note,expected/goals.target*100));
     }
-    if(goals.dailyLoss>0){ const lost=Math.max(0,-dayP), pct=lost/goals.dailyLoss*100;
+    if(goals.dailyLoss>0){ const lost=Math.max(0,-dayP), pct=lost/goals.dailyLoss*100; document.documentElement.classList.toggle('limit-hit',pct>=100);
       bars.push(goalBar('Daily loss limit',`${fmtMoney(-lost)} / ${fmtMoney(-goals.dailyLoss)}`,pct,pct>=100?'var(--loss)':pct>=70?'oklch(0.75 0.15 75)':'var(--primary)',pct>=100?'Limit hit. Stop trading for today.':'')); }
     right=`<div class="rounded-2xl border bg-card p-5 shadow-soft"><div class="flex items-center justify-between"><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Goals</p><button id="goalEdit" class="text-xs font-semibold text-primary hover:underline">${bars.length?'Edit':'Set goals'}</button></div>
       <div class="mt-3 space-y-4">${bars.join('')||'<p class="text-sm text-muted-foreground">Set a monthly profit target and a daily loss limit to stay disciplined.</p>'}</div></div>`;
   }
   el.innerHTML=`<div class="grid gap-4 lg:grid-cols-3">${left}${right}</div>`;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.querySelectorAll('.goal-fill').forEach(b=>{ b.style.width=b.dataset.w+'%'; goalW[b.dataset.k]=Number(b.dataset.w); })));
+  fxPulse(el,`${vals.length}|${cum.toFixed(2)}`);
   const on=(id,fn)=>{ const b=document.getElementById(id); if(b) b.addEventListener('click',fn); };
   on('goalEdit',()=>{ goalsEditing=true; renderHero(heroClosed); });
   on('goalCancel',()=>{ goalsEditing=false; renderHero(heroClosed); });

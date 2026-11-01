@@ -4,12 +4,12 @@ function riskOf(t){ if(t.stop==null||t.stop==='') return null; const r=Math.abs(
 function rMultiple(t){ const p=pnl(t), r=riskOf(t); return p===null||r===null?null:p/r; }
 function fmtR(r){ return r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'; }
 
-function closeDrawer(){ const d=document.getElementById('tradeDrawer'); if(d) d.remove(); }
+function closeDrawer(){ const d=document.getElementById('tradeDrawer'); if(!d||d.dataset.closing) return; d.dataset.closing='1'; d.classList.add('drawer-out'); setTimeout(()=>d.remove(),REDUCE?0:180); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
 
 function openDrawer(id){
   const t=trades.find(x=>x.id===id); if(!t) return;
-  closeDrawer();
+  const old=document.getElementById('tradeDrawer'); if(old) old.remove();
   const p=pnl(t), open=p===null, R=rMultiple(t), risk=riskOf(t);
   const held=t.closeTs&&t.ts?t.closeTs-t.ts:(t.exitAt&&t.date&&t.time?new Date(t.exitAt)-new Date(`${t.date}T${t.time}`):NaN);
   const rr=(t.target!=null&&t.stop!=null&&t.entry!==t.stop)?Math.abs((t.target-t.entry)/(t.entry-t.stop)):null;

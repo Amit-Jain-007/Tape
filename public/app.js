@@ -258,18 +258,6 @@ function showView(name){
   if(name==='conn') renderConnections();
 }
 
-let isDarkMode=false;
-document.getElementById('themeBtn').addEventListener('click',()=>{
-  isDarkMode=!isDarkMode;
-  document.documentElement.style.setProperty('--background', isDarkMode?'oklch(0.19 0.012 60)':'oklch(0.985 0.002 95)');
-  document.documentElement.style.setProperty('--foreground', isDarkMode?'oklch(0.95 0.005 95)':'oklch(0.22 0.015 60)');
-  document.documentElement.style.setProperty('--card', isDarkMode?'oklch(0.23 0.014 60)':'oklch(1 0 0)');
-  document.documentElement.style.setProperty('--card-foreground', isDarkMode?'oklch(0.95 0.005 95)':'oklch(0.22 0.015 60)');
-  document.documentElement.style.setProperty('--secondary', isDarkMode?'oklch(0.27 0.014 60)':'oklch(0.955 0.008 100)');
-  document.documentElement.style.setProperty('--muted-foreground', isDarkMode?'oklch(0.65 0.015 80)':'oklch(0.52 0.02 80)');
-  document.documentElement.style.setProperty('--border', isDarkMode?'oklch(0.32 0.014 60)':'oklch(0.91 0.008 95)');
-});
-
 document.getElementById('statusSeg').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return; statusFilter=b.dataset.status;
   document.querySelectorAll('#statusSeg button').forEach(x=>{
@@ -385,8 +373,9 @@ function render(){
   const body=document.getElementById('tradeBody'), empty=document.getElementById('emptyMsg');
   body.innerHTML=''; empty.classList.toggle('hidden', list.length>0 || trades.length>0);
   document.querySelector('table').parentElement.querySelector('.hidden.py-12') && (document.getElementById('emptyMsg').classList.toggle('hidden', trades.length>0));
-  [...list].reverse().forEach(t=>{
+  [...list].reverse().forEach((t,ix)=>{
     const p=pnl(t), open=p===null; const tr=document.createElement('tr'); tr.className='border-b last:border-0 cursor-pointer';
+    if(!seenRows.has(t.id)){ seenRows.add(t.id); tr.classList.add('row-in'); tr.style.setProperty('--i',Math.min(ix,14)); }
     tr.innerHTML=`<td class="whitespace-nowrap p-2 align-middle text-muted-foreground">${new Date(t.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</td>
       <td class="p-2 align-middle font-semibold">${t.symbol}</td>
       <td class="p-2 align-middle"><span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ${BROKER_COLOR[t.broker||'Manual']||'bg-broker-manual'}"></span><span class="text-xs text-muted-foreground whitespace-nowrap">${t.broker||'Manual'}</span></span></td>
@@ -405,7 +394,7 @@ function render(){
     tr.addEventListener('click',e=>{ if(e.target.closest('button')) return; openDrawer(t.id); });
     body.appendChild(tr);
   });
-  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{trades=trades.filter(t=>t.id!==b.dataset.del);save();render();}));
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ const del=()=>{trades=trades.filter(t=>t.id!==b.dataset.del);save();render();}; const tr=b.closest('tr'); if(tr&&!REDUCE){ tr.classList.add('row-out'); setTimeout(del,220); } else del(); }));
   body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openForm(b.dataset.edit)));
   body.querySelectorAll('[data-view-chart]').forEach(b=>b.addEventListener('click',()=>{
     const t=trades.find(x=>x.id===b.dataset.viewChart); if(!t||!t.chart)return;
@@ -435,6 +424,7 @@ function render(){
 
   renderTradeCharts(closed);
   renderHero(closed);
+  animateNumbers(); playEntranceOnce();
 }
 function statCard(iconPath,label,value,tone){
   const color = tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
@@ -444,6 +434,7 @@ function statCard(iconPath,label,value,tone){
 }
 
 function renderCalendar(){
+  const calG=document.getElementById('calGrid'); if(calDir){ calG.classList.remove('cal-next','cal-prev'); void calG.offsetWidth; calG.classList.add(calDir>0?'cal-next':'cal-prev'); calDir=0; }
   const y=calDate.getFullYear(), m=calDate.getMonth();
   document.getElementById('calMonth').textContent=calDate.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   const byDay={}; trades.forEach(t=>{(byDay[t.date]=byDay[t.date]||[]).push(t);});
@@ -474,8 +465,8 @@ function renderCalDay(list,dateStr){
     tr.innerHTML=`<td class="p-2 align-middle">${t.symbol}</td><td class="p-2 align-middle"><span class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${t.direction==='long'?'text-gain':'text-loss'}">${t.direction}</span></td><td class="p-2 align-middle">${t.entry}</td><td class="p-2 align-middle">${t.exit==null?'—':t.exit}</td><td class="p-2 align-middle text-right font-semibold ${p==null?'text-muted-foreground':(p>=0?'text-gain':'text-loss')}">${p==null?'Open':fmtMoney(p)}</td>`;
     body.appendChild(tr);});
 }
-document.getElementById('calPrev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();});
-document.getElementById('calNext').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();});
+document.getElementById('calPrev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);calDir=-1;renderCalendar();});
+document.getElementById('calNext').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);calDir=1;renderCalendar();});
 
 // Each entry maps a broker to its backend endpoint. Brokers whose only
 // credential is public (like a wallet address) can take that value right
@@ -509,6 +500,7 @@ function toast(message,type){
   const isErr=type==='error';
   el.className='toast-in flex items-start gap-2.5 rounded-lg border bg-card p-3.5 text-sm shadow-lift transition-all duration-300';
   el.innerHTML=`<svg class="icon mt-0.5 shrink-0" style="stroke:${isErr?'var(--loss)':'var(--gain)'}" viewBox="0 0 24 24">${isErr?'<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>':'<path d="M20 6 9 17l-5-5"/>'}</svg><span class="text-card-foreground">${message}</span>`;
+  el.style.position='relative'; el.style.overflow='hidden'; el.insertAdjacentHTML('beforeend','<span class="toast-bar"></span>');
   host.appendChild(el);
   setTimeout(()=>{
     el.style.opacity='0'; el.style.transform='translateX(20px)';
@@ -560,7 +552,8 @@ async function syncBroker(name,endpoint,silent,accountId){
   }
   syncInFlight[key]=true;
   const btn=document.querySelector(`.sync-btn[data-sync-key="${key}"]`);
-  if(btn){ btn.disabled=true; btn.textContent='Syncing…'; }
+  if(btn){ btn.disabled=true; btn.innerHTML='<svg class="icon spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Syncing…'; }
+  let syncOk=false;
   try{
     const acct=paramValue?paramValue.toLowerCase():null;
     // Only ask for what could have changed since the last sync (see computeSince).
@@ -581,7 +574,7 @@ async function syncBroker(name,endpoint,silent,accountId){
       balance:(typeof body.balance==='number'?body.balance:(connMeta[key]&&connMeta[key].balance!=null?connMeta[key].balance:null)),
     };
     saveConnMeta();
-    render();
+    render(); syncOk=true;
     if(newOnes.length>0) toast(`Imported ${newOnes.length} new trade${newOnes.length===1?'':'s'} from ${name}`);
     else if(!silent) toast('Already up to date');
     if(newOnes.length>0) checkNewTradesReview();
@@ -591,7 +584,7 @@ async function syncBroker(name,endpoint,silent,accountId){
   }finally{
     syncInFlight[key]=false;
     if(document.getElementById('view-conn').classList.contains('hidden')===false) renderConnections();
-    else if(btn){ btn.disabled=false; btn.innerHTML='<svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Sync now'; }
+    else if(btn){ btn.disabled=false; const ICON='<svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>'; if(syncOk){ btn.innerHTML='<svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Synced'; setTimeout(()=>{ if(btn.isConnected) btn.innerHTML=ICON+'Sync now'; },1300); } else btn.innerHTML=ICON+'Sync now'; }
   }
 }
 // Background auto-sync every 10 minutes while the app is open — same

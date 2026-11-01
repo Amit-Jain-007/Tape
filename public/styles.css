@@ -62,3 +62,128 @@ tbody tr:hover{background:var(--secondary);}
 .chart-host{position:relative;}
 .chart-label{position:absolute;font-size:11px;font-weight:500;line-height:1;letter-spacing:0;color:var(--muted-foreground);white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;}
 svg.chart-svg line,svg.chart-svg path{vector-effect:non-scaling-stroke;}
+
+/* =====================================================================
+   DARK MODE — "Graphite"
+   ===================================================================== */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --background:oklch(0.165 0.006 265); --foreground:oklch(0.95 0.004 265);
+  --card:oklch(0.205 0.007 265); --card-foreground:oklch(0.95 0.004 265);
+  --primary:oklch(0.72 0.11 188); --primary-foreground:oklch(0.16 0.01 188);
+  --secondary:oklch(0.25 0.008 265); --secondary-foreground:oklch(0.92 0.004 265);
+  --muted:oklch(0.25 0.008 265); --muted-foreground:oklch(0.7 0.012 265);
+  --accent:oklch(0.29 0.045 188); --accent-foreground:oklch(0.86 0.08 188);
+  --destructive:oklch(0.68 0.2 25); --destructive-foreground:oklch(0.16 0.01 25);
+  --border:oklch(0.29 0.008 265); --input:oklch(0.31 0.008 265); --ring:oklch(0.72 0.11 188);
+  --gain:oklch(0.78 0.16 160); --gain-foreground:oklch(0.16 0.02 160); --gain-subtle:oklch(0.27 0.05 165);
+  --loss:oklch(0.7 0.19 25); --loss-foreground:oklch(0.16 0.02 25); --loss-subtle:oklch(0.27 0.06 25);
+}
+:root[data-theme="dark"] .shadow-soft{box-shadow:inset 0 1px 0 oklch(1 0 0 / .05),0 10px 28px -14px oklch(0 0 0 / .7);}
+:root[data-theme="dark"] .shadow-lift,:root[data-theme="dark"] .shadow-lg{box-shadow:inset 0 1px 0 oklch(1 0 0 / .06),0 18px 44px -14px oklch(0 0 0 / .75);}
+:root[data-theme="dark"] img[src^="data:"]{filter:brightness(.88) contrast(1.02);}
+:root[data-theme="dark"] .text-gain,:root[data-theme="dark"] .text-loss{text-shadow:0 0 18px color-mix(in oklch,currentColor 35%,transparent);}
+:root[data-theme="dark"] .spark,:root[data-theme="dark"] svg.chart-svg path[stroke]{filter:drop-shadow(0 0 5px color-mix(in oklch,var(--primary) 55%,transparent));}
+:root[data-theme="dark"] ::selection{background:color-mix(in oklch,var(--primary) 40%,transparent);}
+
+/* accent colours (light + dark) */
+:root[data-accent="violet"]{--primary:oklch(0.52 0.14 295);--ring:oklch(0.52 0.14 295);--accent:oklch(0.93 0.035 295);--accent-foreground:oklch(0.35 0.1 295);}
+:root[data-accent="amber"]{--primary:oklch(0.6 0.13 70);--ring:oklch(0.6 0.13 70);--accent:oklch(0.94 0.04 80);--accent-foreground:oklch(0.4 0.09 70);}
+:root[data-accent="rose"]{--primary:oklch(0.55 0.17 10);--ring:oklch(0.55 0.17 10);--accent:oklch(0.94 0.03 10);--accent-foreground:oklch(0.4 0.12 10);}
+:root[data-theme="dark"][data-accent="violet"]{--primary:oklch(0.74 0.12 295);--ring:oklch(0.74 0.12 295);--accent:oklch(0.3 0.05 295);--accent-foreground:oklch(0.87 0.08 295);--primary-foreground:oklch(0.16 0.02 295);}
+:root[data-theme="dark"][data-accent="amber"]{--primary:oklch(0.8 0.14 78);--ring:oklch(0.8 0.14 78);--accent:oklch(0.3 0.05 80);--accent-foreground:oklch(0.88 0.09 80);--primary-foreground:oklch(0.18 0.02 80);}
+:root[data-theme="dark"][data-accent="rose"]{--primary:oklch(0.74 0.14 10);--ring:oklch(0.74 0.14 10);--accent:oklch(0.3 0.05 10);--accent-foreground:oklch(0.88 0.08 10);--primary-foreground:oklch(0.16 0.02 10);}
+
+/* theme switch + accent dots */
+#themeSeg button{display:inline-flex;height:28px;width:30px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);transition:background .15s,color .15s,transform .1s;}
+#themeSeg button:hover{color:var(--foreground);}
+#themeSeg button[aria-pressed="true"]{background:var(--secondary);color:var(--foreground);}
+#accentDots button{height:14px;width:14px;border-radius:999px;transition:transform .15s,box-shadow .15s;}
+#accentDots button:hover{transform:scale(1.25);}
+#accentDots button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--background),0 0 0 4px currentColor;}
+
+/* theme change: circular reveal (View Transitions) + fallback fade */
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal;}
+::view-transition-old(root){z-index:1;} ::view-transition-new(root){z-index:2;}
+.theme-fade,.theme-fade *{transition:background-color .25s,color .25s,border-color .25s,fill .25s,stroke .25s !important;}
+
+/* =====================================================================
+   MOTION
+   ===================================================================== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .9s linear infinite;}
+@keyframes revealX{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes barGrow{from{transform:scaleY(0);opacity:.3}}
+@keyframes barGrowX{from{transform:scaleX(0);opacity:.3}}
+@keyframes pieIn{from{opacity:0;transform:scale(.6) rotate(-35deg)}}
+@keyframes rowIn{from{opacity:0;transform:translateX(-14px)}}
+@keyframes rowOut{to{opacity:0;transform:translateX(26px)}}
+@keyframes slideFromRight{from{opacity:.25;transform:translateX(28px)}}
+@keyframes slideFromLeft{from{opacity:.25;transform:translateX(-28px)}}
+@keyframes flashG{0%{text-shadow:0 0 16px var(--gain)}100%{text-shadow:0 0 0 transparent}}
+@keyframes flashR{0%{text-shadow:0 0 16px var(--loss)}100%{text-shadow:0 0 0 transparent}}
+@keyframes shrink{from{width:100%}to{width:0}}
+@keyframes limitPulse{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes drawerSpring{from{opacity:0;transform:translateX(56px)}to{opacity:1;transform:translateX(0)}}
+@keyframes drawerOut{to{opacity:0;transform:translateX(40px)}}
+@keyframes confetti{0%{transform:translate(0,0) rotate(0);opacity:1}
+  35%{transform:translate(calc(var(--dx)*.6),var(--dy)) rotate(calc(var(--r)*.5));opacity:1}
+  100%{transform:translate(var(--dx),38vh) rotate(var(--r));opacity:0}}
+
+/* cards: lift, border glow and a cursor spotlight */
+.rounded-2xl.border.bg-card{position:relative;transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s,border-color .22s;}
+.rounded-2xl.border.bg-card::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),color-mix(in oklch,var(--primary) 13%,transparent),transparent 70%);}
+.rounded-2xl.border.bg-card:hover::before{opacity:1;}
+.rounded-2xl.border.bg-card:not(:has(table)):hover{transform:translateY(-2px);border-color:color-mix(in oklch,var(--primary) 38%,var(--border));box-shadow:0 14px 34px -16px color-mix(in oklch,var(--primary) 40%,transparent);}
+.rounded-2xl.border.bg-card:not(:has(table)):active{transform:translateY(0) scale(.995);}
+
+/* buttons */
+button{transition:transform .1s,background-color .15s,color .15s,border-color .15s,opacity .15s;}
+button:not(:disabled):active{transform:scale(.96);}
+
+/* charts (animate only when data changes: .fx-run is set by fxPulse) */
+svg.chart-svg rect{transform-box:fill-box;}
+svg.chart-svg rect[data-tip]:hover{opacity:.82;}
+.fx-run svg.chart-svg rect[data-tip]:not(.row-hover){animation:barGrow .6s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*16ms);}
+.fx-run svg.chart-svg .hbar{animation:barGrowX .6s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*45ms);}
+.fx-run svg.chart-svg path{animation:revealX 1s cubic-bezier(.3,.7,.2,1) backwards;}
+.fx-run .pie-svg path{animation:pieIn .75s cubic-bezier(.2,.8,.2,1) backwards;}
+.fx-run .spark{animation:revealX 1s cubic-bezier(.3,.7,.2,1) backwards;}
+.pie-svg path{transform-box:view-box;transform-origin:50% 50%;transition:transform .2s,opacity .15s;}
+.pie-svg path:hover{transform:scale(1.06);}
+.crosshair{position:absolute;top:0;bottom:18px;width:1px;pointer-events:none;background:color-mix(in oklch,var(--primary) 60%,transparent);}
+.goal-fill{transition:width .9s cubic-bezier(.2,.8,.2,1);}
+.num-up{animation:flashG 1s ease-out;} .num-down{animation:flashR 1s ease-out;}
+
+/* calendar */
+.cal-cell{position:relative;transition:transform .15s,box-shadow .15s,filter .15s;}
+.cal-cell:hover{transform:scale(1.045);z-index:2;box-shadow:0 8px 20px -8px oklch(0 0 0 / .35),0 0 0 1px color-mix(in oklch,var(--primary) 40%,transparent);}
+.cal-next{animation:slideFromRight .3s cubic-bezier(.2,.8,.2,1);}
+.cal-prev{animation:slideFromLeft .3s cubic-bezier(.2,.8,.2,1);}
+
+/* table rows */
+#tradeBody tr,#calDayBody tr{transition:background-color .12s,box-shadow .12s;}
+#tradeBody tr:hover{box-shadow:inset 3px 0 0 var(--primary);}
+.row-in{animation:rowIn .38s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*28ms);}
+.row-out{animation:rowOut .22s ease forwards;}
+
+/* drawer */
+#tradeDrawer{backdrop-filter:blur(4px);animation:overlayIn .2s ease;}
+.drawer-in{animation:drawerSpring .45s cubic-bezier(.34,1.3,.64,1);}
+.drawer-in>*{animation:fadeUp .4s cubic-bezier(.2,.8,.2,1) backwards;}
+.drawer-in>*:nth-child(1){animation-delay:.08s}.drawer-in>*:nth-child(2){animation-delay:.13s}.drawer-in>*:nth-child(3){animation-delay:.18s}
+.drawer-in>*:nth-child(4){animation-delay:.23s}.drawer-in>*:nth-child(5){animation-delay:.28s}.drawer-in>*:nth-child(6){animation-delay:.33s}
+.drawer-in>*:nth-child(n+7){animation-delay:.38s}
+#tradeDrawer.drawer-out{animation:overlayOut .18s ease forwards;}
+#tradeDrawer.drawer-out .drawer-in{animation:drawerOut .18s ease forwards;}
+#tradeDrawer.drawer-out .drawer-in>*{animation:none;}
+
+/* toasts, confetti, loss-limit glow */
+.toast-bar{position:absolute;left:0;bottom:0;height:2px;background:var(--primary);animation:shrink 4s linear forwards;}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden;}
+.confetti i{position:absolute;top:55%;width:8px;height:12px;border-radius:2px;animation:confetti 1.7s cubic-bezier(.2,.7,.3,1) forwards;}
+html.limit-hit body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:30;box-shadow:inset 0 0 90px -18px color-mix(in oklch,var(--loss) 60%,transparent);animation:limitPulse 2.4s ease-in-out infinite;}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
