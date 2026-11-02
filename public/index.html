@@ -6,15 +6,24 @@
 <title>My Journal — Tape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>try{var d=document.documentElement,m=localStorage.getItem('tape_theme')||'auto',a=localStorage.getItem('tape_accent');d.dataset.theme=(m==='dark'||(m==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';if(a&&a!=='teal')d.dataset.accent=a;}catch(e){}</script>
+<script>try{var d=document.documentElement,m=localStorage.getItem('tape_theme')||'auto',a=localStorage.getItem('tape_accent');d.dataset.theme=(m==='dark'||(m==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';if(a&&a!=='teal')d.dataset.accent=a;var p=JSON.parse(localStorage.getItem('tape_display')||'{}');d.dataset.layout=p.layout||'wide';d.dataset.cards=p.cards||'soft';d.dataset.rail=p.rail||'expanded';}catch(e){}</script>
 <link rel="stylesheet" href="tailwind.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body class="min-h-screen bg-background text-foreground">
 
+<nav id="rail" aria-label="Main">
+  <div class="rail-brand"><span><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 12 14.7 8.7 11.4 3 17.1"/></svg></span></div>
+  <button data-rail="journal" title="Journal" aria-current="true"><svg class="icon" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Journal</span></button>
+  <button data-rail="calendar" title="Calendar"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Calendar</span></button>
+  <button data-rail="accounts" title="Accounts"><svg class="icon" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0Z"/><path d="M12 17v5"/></svg><span>Accounts</span></button>
+  <div class="rail-spacer"></div>
+  <button id="railToggle" title="Collapse / expand"><svg class="icon" viewBox="0 0 24 24"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Collapse</span></button>
+</nav>
+
 <div id="view-log">
 <header class="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-  <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+  <div class="app-shell mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6 2xl:px-10">
     <span class="flex cursor-pointer items-center gap-2 font-display text-lg font-bold text-foreground" id="logoHome">
       <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
         <svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 12 14.7 8.7 11.4 3 17.1"/></svg>
@@ -40,13 +49,14 @@
   </div>
 </header>
 
-<main class="mx-auto w-full max-w-6xl px-6 py-8">
+<main class="app-shell mx-auto w-full px-4 py-8 sm:px-6 2xl:px-10">
   <h1 class="text-2xl font-bold text-foreground">Trading journal</h1>
   <p class="mt-1 text-sm text-muted-foreground" id="journalSub">Log your first trade to start building your record.</p>
 
-  <div id="heroSection" class="mt-6"></div>
-
-  <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" id="stats"></div>
+  <div class="app-grid mt-6">
+  <aside class="app-side"><div id="heroSection"></div></aside>
+  <div class="app-main">
+  <div class="grid grid-cols-2 gap-3 xl:grid-cols-4" id="stats"></div>
 
   <div id="chartsSection" class="mt-6"></div>
 
@@ -104,6 +114,8 @@
       <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Symbol</th><th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Side</th>
       <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Entry</th><th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Exit</th>
       <th class="h-10 px-2 text-right align-middle font-medium text-muted-foreground">P&amp;L</th></tr></thead><tbody id="calDayBody"></tbody></table>
+  </div>
+  </div>
   </div>
 </main>
 </div>

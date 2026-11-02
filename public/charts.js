@@ -140,13 +140,13 @@ function chartPanel(title,subtitle,inner,extraClass=''){
   return `<div class="rounded-2xl border bg-card p-5 shadow-soft ${extraClass}">
     <h3 class="text-sm font-bold text-card-foreground">${title}</h3>
     ${subtitle?`<p class="mt-0.5 text-xs text-muted-foreground">${subtitle}</p>`:''}
-    <div class="chart-host mt-3 h-56">${inner}</div></div>`;
+    <div class="chart-host mt-3 ${extraClass.includes('tall')?'h-72':'h-56'}">${inner}</div></div>`;
 }
 function metricCard(label,value,tone){
   const color=tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
-  return `<div class="rounded-2xl border bg-card p-4 shadow-soft">
-    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">${label}</p>
-    <p class="mt-1 font-display text-xl font-bold ${color}">${value}</p></div>`;
+  return `<div class="stat-tile rounded-2xl border bg-card px-3.5 py-3 shadow-soft ${tone==='gain'?'tone-gain':tone==='loss'?'tone-loss':''}">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">${label}</p>
+    <p class="mt-0.5 font-display text-lg font-bold ${color}">${value}</p></div>`;
 }
 function groupBy(list,keyFn){
   const m={}; list.forEach(t=>{ const k=keyFn(t)||'—'; const c=m[k]=m[k]||{pnl:0,wins:0,total:0}; c.pnl+=pnl(t); c.total++; if(pnl(t)>0)c.wins++; });
@@ -201,7 +201,7 @@ function buildCapitalPanel(){
   const inner = slices.length
     ? svgPie(slices.filter(s=>s.v>0),{money:true})
     : `<div class="flex h-full items-center justify-center text-center text-sm text-muted-foreground">Sync an account to see your capital here.</div>`;
-  return chartPanel('Total capital', slices.length?`${fmtMoney(total)} across ${slices.length} account${slices.length===1?'':'s'}`:'Balance across your connected accounts', inner);
+  return chartPanel('Total capital', slices.length?`${fmtMoney(total)} across ${slices.length} account${slices.length===1?'':'s'}`:'Balance across your connected accounts', inner, 'span-side');
 }
 
 function buildMoonPanel(closed){
@@ -304,10 +304,10 @@ function renderTradeCharts(allClosed){
   const net=chron.reduce((s,t)=>s+pnl(t),0);
   const rs=chron.map(rMultiple).filter(x=>x!==null);
   const rSum=rs.reduce((x,y)=>x+y,0);
-  const rCards=rs.length?[metricCard('Avg R',fmtR(rSum/rs.length),rSum>=0?'gain':'loss'),metricCard('Total R',fmtR(rSum),rSum>=0?'gain':'loss'),metricCard('Best R',fmtR(Math.max(...rs)),'gain'),metricCard('Worst R',fmtR(Math.min(...rs)),'loss')].join(''):'<div class="rounded-2xl border border-dashed bg-card p-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-4">Add a stop-loss to your trades (click a trade → Edit) to unlock R-multiple stats.</div>';
+  const rCards=rs.length?[metricCard('Avg R',fmtR(rSum/rs.length),rSum>=0?'gain':'loss'),metricCard('Total R',fmtR(rSum),rSum>=0?'gain':'loss'),metricCard('Best R',fmtR(Math.max(...rs)),'gain'),metricCard('Worst R',fmtR(Math.min(...rs)),'loss')].join(''):'<div class="rounded-2xl border border-dashed bg-card p-4 text-sm text-muted-foreground col-span-full">Add a stop-loss to your trades (click a trade → Edit) to unlock R-multiple stats.</div>';
 
   el.innerHTML = rangeBar()+`
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
       ${metricCard('Net P&L (range)',fmtMoney(net),net>=0?'gain':'loss')}
       ${metricCard('Payoff ratio',payoff==null?'—':payoff.toFixed(2))}
       ${metricCard('Total fees',fmtMoney(-totalFees),'loss')}
@@ -322,11 +322,9 @@ function renderTradeCharts(allClosed){
       ${metricCard('Worst loss streak',String(Math.abs(worstStreak)))}
       ${rCards}
     </div>
-    <div class="mt-4 grid gap-4 lg:grid-cols-3">
-      ${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates),'lg:col-span-2')}
+    <div class="bento mt-4">
+      ${chartPanel('Equity curve','Cumulative P&L across closed trades', svgArea(curve.map(c=>c.equity),curveDates),'tall span-main')}
       ${buildCapitalPanel()}
-    </div>
-    <div class="mt-4 grid gap-4 lg:grid-cols-2">
       ${chartPanel('Daily P&L','Last 30 trading days', svgBar(daily))}
       ${chartPanel('Drawdown','Distance below your equity high', svgArea(curve.map(c=>c.drawdown),curveDates,{loss:true}))}
       ${chartPanel('Monthly P&L','Last 12 months', svgBar(monthly))}
@@ -337,7 +335,7 @@ function renderTradeCharts(allClosed){
       ${chartPanel('P&L by session','Asia / London / New York / Sydney', bySession.length?svgBar(bySession.map(d=>({label:d.name,v:d.pnl}))):'<div class="flex h-full items-center justify-center text-sm text-muted-foreground">Close some trades to see session performance.</div>')}
       ${chartPanel('Long vs short','Directional bias performance', svgBar(bySide.map(d=>({label:d.name,v:d.pnl}))))}
       ${buildMoonPanel(chron)}
-      ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution),'lg:col-span-2')}
+      ${chartPanel('Trade-by-trade P&L','Every closed trade in sequence', svgBar(distribution),'span-wide')}
     </div>`;
   wireTooltips(el); wireRange(el,allClosed);
   fxPulse(el,`${closed.length}|${net.toFixed(2)}|${chartRange}`);
@@ -372,12 +370,12 @@ function renderHero(closed){
   let cum=0; const vals=[0,...[...closed].sort((a,b)=>(a.closeTs||a.ts||0)-(b.closeTs||b.ts||0)).slice(-40).map(t=>cum+=pnl(t))];
   const tone=v=>v>0?'text-gain':v<0?'text-loss':'';
   const pill=(l,v)=>`<div><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">${l}</p><p class="mt-0.5 font-display text-lg font-bold ${tone(v)}">${v>0?'+':''}${fmtMoney(v)}</p></div>`;
-  const left=`<div class="rounded-2xl border bg-card p-5 shadow-soft lg:col-span-2">
+  const left=`<div class="rounded-2xl border bg-card p-5 shadow-soft">
     <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total balance</p>
     <div class="mt-1 flex flex-wrap items-end justify-between gap-4">
       <div><p class="font-display text-4xl font-bold">${slices.length?fmtMoney(bal):'—'}</p>
       ${slices.length?'':'<p class="mt-1 text-sm text-muted-foreground">Sync an account to see your balance.</p>'}</div>
-      <div class="flex gap-6">${pill('Today',dayP)}${pill('7 days',weekP)}${pill('30 days',rolling30)}</div>
+      <div class="mt-1 grid w-full grid-cols-3 gap-3">${pill('Today',dayP)}${pill('7 days',weekP)}${pill('30 days',rolling30)}</div>
     </div><div class="mt-3">${sparkline(vals)}</div></div>`;
   let right;
   if(goalsEditing){
@@ -400,7 +398,7 @@ function renderHero(closed){
     right=`<div class="rounded-2xl border bg-card p-5 shadow-soft"><div class="flex items-center justify-between"><p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Goals</p><button id="goalEdit" class="text-xs font-semibold text-primary hover:underline">${bars.length?'Edit':'Set goals'}</button></div>
       <div class="mt-3 space-y-4">${bars.join('')||'<p class="text-sm text-muted-foreground">Set a monthly profit target and a daily loss limit to stay disciplined.</p>'}</div></div>`;
   }
-  el.innerHTML=`<div class="grid gap-4 lg:grid-cols-3">${left}${right}</div>`;
+  el.innerHTML=`<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">${left}${right}</div>`;
   requestAnimationFrame(()=>requestAnimationFrame(()=>el.querySelectorAll('.goal-fill').forEach(b=>{ b.style.width=b.dataset.w+'%'; goalW[b.dataset.k]=Number(b.dataset.w); })));
   fxPulse(el,`${vals.length}|${cum.toFixed(2)}`);
   const on=(id,fn)=>{ const b=document.getElementById(id); if(b) b.addEventListener('click',fn); };

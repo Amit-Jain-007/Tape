@@ -90,3 +90,64 @@ function celebrate(key){
     host.appendChild(p); }
   document.body.appendChild(host); setTimeout(()=>host.remove(),2300);
 }
+
+// ---------- display preferences: layout, card style, density, columns, side rail ----------
+const PREFS={layout:'wide',cards:'soft',density:'comfortable',rail:'expanded',cols:[]};
+try{ Object.assign(PREFS,JSON.parse(localStorage.getItem('tape_display')||'{}')); }catch(e){}
+function savePrefs(){ try{ localStorage.setItem('tape_display',JSON.stringify(PREFS)); }catch(e){} }
+function applyPrefs(){
+  const r=document.documentElement; r.dataset.layout=PREFS.layout; r.dataset.cards=PREFS.cards; r.dataset.rail=PREFS.rail;
+  const tbl=document.querySelector('#listPanel table');
+  if(tbl){ tbl.classList.toggle('dense',PREFS.density==='compact'); for(let i=1;i<=10;i++) tbl.classList.toggle('hc-'+i,PREFS.cols.includes(i)); }
+  document.querySelectorAll('[data-pref]').forEach(b=>b.setAttribute('aria-pressed',String(PREFS[b.dataset.pref]===b.dataset.val)));
+  document.querySelectorAll('#colsMenu input').forEach(c=>{ c.checked=!PREFS.cols.includes(Number(c.dataset.col)); });
+}
+function optRow(pref,items){ return `<div class="opt-row">${items.map(([v,l])=>`<button class="opt" data-pref="${pref}" data-val="${v}">${l}</button>`).join('')}</div>`; }
+(function buildMenus(){
+  const seg=document.getElementById('themeSeg');
+  if(seg){
+    const wrap=document.createElement('div'); wrap.className='relative';
+    wrap.innerHTML=`<button id="displayBtn" title="Display options" aria-label="Display options" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background shadow-sm hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></button>
+      <div id="displayMenu" class="display-menu hidden"><h4>Layout</h4>${optRow('layout',[['comfortable','Comfortable'],['wide','Wide'],['full','Full']])}
+      <h4>Cards</h4>${optRow('cards',[['soft','Soft'],['glass','Glass'],['outline','Outline'],['terminal','Terminal'],['sections','Sections']])}
+      <h4>Table rows</h4>${optRow('density',[['comfortable','Comfortable'],['compact','Compact']])}
+      <h4>Accent</h4><div id="accentSlot"></div></div>`;
+    seg.parentElement.insertBefore(wrap,seg);
+    const dots=document.getElementById('accentDots'); if(dots){ dots.className='flex items-center gap-3 py-1'; document.getElementById('accentSlot').appendChild(dots); }
+  }
+  const bar=document.getElementById('modeSeg')&&document.getElementById('modeSeg').parentElement;
+  if(bar){
+    const th=[...document.querySelectorAll('#listPanel thead th')].slice(0,10).map(x=>x.textContent);
+    const w=document.createElement('div'); w.className='relative';
+    w.innerHTML=`<button id="colsBtn" class="inline-flex items-center gap-1.5 rounded-xl border bg-card px-3.5 py-2 text-sm font-medium shadow-soft hover:bg-accent"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>Columns</button>
+      <div id="colsMenu" class="display-menu hidden" style="min-width:12rem">${th.map((t,i)=>`<label class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"><input type="checkbox" data-col="${i+1}" checked>${t}</label>`).join('')}</div>`;
+    bar.appendChild(w);
+  }
+  applyPrefs();
+})();
+document.addEventListener('click',e=>{
+  const t=e.target; if(!t.closest) return;
+  const opt=t.closest('[data-pref]'); if(opt){ PREFS[opt.dataset.pref]=opt.dataset.val; savePrefs(); applyPrefs(); return; }
+  const col=t.closest('#colsMenu input'); if(col){ const n=Number(col.dataset.col); PREFS.cols=col.checked?PREFS.cols.filter(x=>x!==n):[...new Set([...PREFS.cols,n])]; savePrefs(); applyPrefs(); return; }
+  [['#displayBtn','#displayMenu'],['#colsBtn','#colsMenu']].forEach(([b,m])=>{
+    const menu=document.querySelector(m); if(!menu) return;
+    if(t.closest(b)) menu.classList.toggle('hidden'); else if(!t.closest(m)) menu.classList.add('hidden');
+  });
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelectorAll('.display-menu').forEach(m=>m.classList.add('hidden')); });
+
+// side rail (proxies the existing buttons, so no logic is duplicated)
+function railSync(){
+  const conn=!document.getElementById('view-conn').classList.contains('hidden'), cal=!document.getElementById('calPanel').classList.contains('hidden');
+  document.querySelectorAll('#rail [data-rail]').forEach(b=>{ const k=b.dataset.rail; b.setAttribute('aria-current',String(k==='accounts'?conn:k==='calendar'?(!conn&&cal):(!conn&&!cal))); });
+}
+document.getElementById('rail').addEventListener('click',e=>{
+  if(e.target.closest('#railToggle')){ PREFS.rail=PREFS.rail==='expanded'?'collapsed':'expanded'; savePrefs(); applyPrefs(); return; }
+  const b=e.target.closest('[data-rail]'); if(!b) return; const k=b.dataset.rail;
+  if(k==='accounts') document.getElementById('connBtn').click();
+  else{
+    if(!document.getElementById('view-conn').classList.contains('hidden')) document.getElementById('backToJournal').click();
+    const m=document.querySelector(`#modeSeg [data-mode=${k==='calendar'?'calendar':'list'}]`); if(m) m.click();
+  }
+});
+document.addEventListener('click',()=>setTimeout(railSync,0)); railSync();

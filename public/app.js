@@ -428,7 +428,7 @@ function render(){
 }
 function statCard(iconPath,label,value,tone){
   const color = tone==='gain'?'text-gain':tone==='loss'?'text-loss':'text-card-foreground';
-  return `<div class="rounded-2xl border bg-card p-5 shadow-soft">
+  return `<div class="stat-tile rounded-2xl border bg-card p-5 shadow-soft ${tone==='gain'?'tone-gain':tone==='loss'?'tone-loss':''}">
     <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><svg class="icon" viewBox="0 0 24 24">${iconPath}</svg>${label}</div>
     <p class="mt-2 font-display text-2xl font-bold ${color}">${value}</p></div>`;
 }

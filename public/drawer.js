@@ -4,7 +4,7 @@ function riskOf(t){ if(t.stop==null||t.stop==='') return null; const r=Math.abs(
 function rMultiple(t){ const p=pnl(t), r=riskOf(t); return p===null||r===null?null:p/r; }
 function fmtR(r){ return r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'; }
 
-function closeDrawer(){ const d=document.getElementById('tradeDrawer'); if(!d||d.dataset.closing) return; d.dataset.closing='1'; d.classList.add('drawer-out'); setTimeout(()=>d.remove(),REDUCE?0:180); }
+function closeDrawer(){ const d=document.getElementById('tradeDrawer'); if(!d||d.dataset.closing) return; d.dataset.closing='1'; d.classList.add('drawer-out'); document.body.classList.remove('drawer-docked'); setTimeout(()=>d.remove(),REDUCE?0:180); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
 
 function openDrawer(id){
@@ -41,6 +41,7 @@ function openDrawer(id){
       <button id="drawerDel" class="inline-flex h-9 items-center justify-center rounded-md border border-input px-4 text-sm font-medium text-destructive hover:bg-accent">Delete</button>
     </div></div>`;
   d.addEventListener('click',e=>{ if(e.target===d) closeDrawer(); });
+  if(innerWidth>=1536){ d.classList.add('docked'); document.body.classList.add('drawer-docked'); }
   document.body.appendChild(d);
   document.getElementById('drawerClose').onclick=closeDrawer;
   document.getElementById('drawerEdit').onclick=()=>{ closeDrawer(); openForm(id); };
