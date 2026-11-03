@@ -54,8 +54,10 @@
   <p class="mt-1 text-sm text-muted-foreground" id="journalSub">Log your first trade to start building your record.</p>
 
   <div class="app-grid mt-6">
-  <aside class="app-side"><div id="heroSection"></div></aside>
+  <aside class="app-side"><div id="heroSection"></div><div id="riskSection" hidden></div></aside>
   <div class="app-main">
+  <section id="openSection"></section>
+
   <div class="grid grid-cols-2 gap-3 xl:grid-cols-4" id="stats"></div>
 
   <div id="chartsSection" class="mt-6"></div>
@@ -234,6 +236,7 @@
 <script src="charts.js"></script>
 <script src="drawer.js"></script>
 <script src="fx.js"></script>
+<script src="positions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
